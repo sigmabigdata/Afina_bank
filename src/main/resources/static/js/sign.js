@@ -3,8 +3,6 @@ import cadesplugin from './vendor/crypto-pro-cadesplugin.js';
 console.log('[sign.js] module loaded');
 
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('[sign.js] DOMContentLoaded');
-
     var toast = document.createElement('div');
     toast.id = 'status-toast';
     document.body.appendChild(toast);
@@ -21,7 +19,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!btn) return;
         ev.preventDefault();
         var id = btn.getAttribute('data-id');
-        console.log('[sign.js] click, id =', id);
         if (id) signDocument(id);
     });
 
@@ -33,25 +30,20 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!respFile.ok) throw new Error('Файл не получен: HTTP ' + respFile.status);
             var buf = await respFile.arrayBuffer();
             var contentBase64 = arrayBufferToBase64(buf);
-            console.log('[sign.js] file loaded, bytes =', buf.byteLength);
 
             show('Ожидание плагина...', 'info');
             var api = await cadesplugin();
 
             show('Поиск сертификатов...', 'info');
             var certs = await api.getCertsList();
-            console.log('[sign.js] certs =', certs && certs.length);
             if (!certs || certs.length === 0) {
                 throw new Error('В хранилище «Личные» нет сертификатов');
             }
             var cert = certs[0];
-            console.log('[sign.js] cert thumbprint =', cert.thumbprint);
 
             show('Подписание...', 'info');
             var signatureRaw = await api.signBase64(cert.thumbprint, contentBase64);
             var signatureB64 = sanitizeBase64(signatureRaw);
-            console.log('[sign.js] signature raw length =', signatureRaw.length,
-                        ', cleaned length =', signatureB64.length);
 
             show('Проверка подписи на сервере...', 'info');
             var headers = { 'Content-Type': 'application/json' };
@@ -67,7 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var data = await resp.json().catch(function () { return {}; });
             if (resp.ok && data.valid) {
                 show('Документ подписан.\n' + (data.signersInfo || ''), 'ok');
-                setTimeout(function () { location.reload(); }, 1500);
+                setTimeout(function () { location.reload(); }, 1200);
             } else {
                 show('Подпись не принята: ' + (data.error || resp.statusText), 'err');
             }
@@ -77,7 +69,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Очистка подписи от всего, что не является стандартным Base64.
     function sanitizeBase64(s) {
         if (!s) return s;
         return String(s)

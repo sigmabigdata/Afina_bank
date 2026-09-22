@@ -31,11 +31,16 @@ public class Document {
 
     private Instant signedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    private User owner;
+    @Column(columnDefinition = "TEXT")
+    private String signerSubject;
+
+    private String signerSerial;
 
     @Column(nullable = false)
     private Instant uploadedAt = Instant.now();
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    private User owner;
 
     // --- getters ---
     public Long getId() { return id; }
@@ -47,8 +52,10 @@ public class Document {
     public String getSignatureBase64() { return signatureBase64; }
     public boolean isSigned() { return signed; }
     public Instant getSignedAt() { return signedAt; }
-    public User getOwner() { return owner; }
+    public String getSignerSubject() { return signerSubject; }
+    public String getSignerSerial() { return signerSerial; }
     public Instant getUploadedAt() { return uploadedAt; }
+    public User getOwner() { return owner; }
 
     // --- setters ---
     public void setId(Long id) { this.id = id; }
@@ -60,6 +67,8 @@ public class Document {
     public void setSignatureBase64(String signatureBase64) { this.signatureBase64 = signatureBase64; }
     public void setSigned(boolean signed) { this.signed = signed; }
     public void setSignedAt(Instant signedAt) { this.signedAt = signedAt; }
-    public void setOwner(User owner) { this.owner = owner; }
+    public void setSignerSubject(String signerSubject) { this.signerSubject = signerSubject; }
+    public void setSignerSerial(String signerSerial) { this.signerSerial = signerSerial; }
     public void setUploadedAt(Instant uploadedAt) { this.uploadedAt = uploadedAt; }
+    public void setOwner(User owner) { this.owner = owner; }
 }

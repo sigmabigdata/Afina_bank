@@ -4,7 +4,27 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="629cb8e2-fd82-42a7-b505-1af228fd1cca" name="Changes" comment="" />
+    <list default="true" id="629cb8e2-fd82-42a7-b505-1af228fd1cca" name="Changes" comment="1">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DocumentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DocumentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/SignApiController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/SignApiController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/entity/Document.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/entity/Document.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/DocumentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/DocumentService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/SignatureService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/SignatureService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/static/css/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/static/js/sign.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/static/js/sign.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DocumentController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DocumentController.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/SignApiController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/SignApiController.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/entity/Document.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/entity/Document.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/DocumentService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/DocumentService.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/SignatureService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/SignatureService.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/static/css/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/static/js/sign.js" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/static/js/sign.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -32,6 +52,9 @@
       </state>
     </system>
   </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
@@ -40,31 +63,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.UkepSignApplication.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Build ukep-sign-service.executor&quot;: &quot;Run&quot;,
-    &quot;Maven.ukep-sign-service [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Maven.ukep-sign-service [install].executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RequestMappingsPanelOrder0&quot;: &quot;0&quot;,
-    &quot;RequestMappingsPanelOrder1&quot;: &quot;1&quot;,
-    &quot;RequestMappingsPanelWidth0&quot;: &quot;75&quot;,
-    &quot;RequestMappingsPanelWidth1&quot;: &quot;75&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;Spring Boot.UkepSignApplication.executor&quot;: &quot;Run&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/timeshadow/Documents/Projects/ukep-sign-service&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.UkepSignApplication.executor": "Run",
+    "Gradle.Build ukep-sign-service.executor": "Run",
+    "Maven.ukep-sign-service [clean].executor": "Run",
+    "Maven.ukep-sign-service [install].executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RequestMappingsPanelOrder0": "0",
+    "RequestMappingsPanelOrder1": "1",
+    "RequestMappingsPanelWidth0": "75",
+    "RequestMappingsPanelWidth1": "75",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "Spring Boot.UkepSignApplication.executor": "Run",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/timeshadow/Documents/Projects/ukep-sign-service",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.lookFeel",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager">
     <configuration name="UkepSignApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
       <module name="ukep-sign-service" />
@@ -92,9 +116,22 @@
       <workItem from="1790055837238" duration="6834000" />
       <workItem from="1790066503762" duration="3000" />
     </task>
+    <task id="LOCAL-00001" summary="1">
+      <option name="closed" value="true" />
+      <created>1790069108264</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1790069108264</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="1" />
+    <option name="LAST_COMMIT_MESSAGE" value="1" />
   </component>
 </project>

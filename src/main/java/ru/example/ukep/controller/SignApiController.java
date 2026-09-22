@@ -51,8 +51,18 @@ public class SignApiController {
                     Path.of(crlPath)
             );
 
-            documentService.saveSignature(doc.getId(), user, req.getSignatureBase64());
-            return ResponseEntity.ok(result);
+            String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
+            String serial  = String.valueOf(result.getOrDefault("signerSerial", ""));
+
+            documentService.saveSignature(
+                    doc.getId(), user, req.getSignatureBase64(), subject, serial);
+
+            return ResponseEntity.ok(Map.of(
+                    "valid", true,
+                    "signersCount", result.get("signersCount"),
+                    "signersInfo", result.get("signersInfo"),
+                    "signedAt", java.time.Instant.now().toString()
+            ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {

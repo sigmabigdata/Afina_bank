@@ -34,8 +34,6 @@ public class SignatureService {
         byte[] signatureBytes = Base64.getDecoder().decode(cleaned);
 
         CAdESSignature cades = new CAdESSignature(signatureBytes, data, CAdESType.CAdES_BES);
-
-        // Загружаем CRL и передаём его в verify для offline-проверки
         Set<X509CRL> crls = loadCrl(crlPath);
         cades.verify(null, crls);
 
@@ -45,15 +43,23 @@ public class SignatureService {
         result.put("signersCount", signers.length);
 
         StringBuilder sb = new StringBuilder();
-        for (CAdESSigner s : signers) {
-            X509Certificate cert = s.getSignerCertificate();
+        String firstSubject = "";
+        String firstSerial = "";
+        for (int i = 0; i < signers.length; i++) {
+            X509Certificate cert = signers[i].getSignerCertificate();
             if (cert != null) {
-                sb.append(cert.getSubjectX500Principal().getName())
-                  .append("; serial=").append(cert.getSerialNumber())
-                  .append("\n");
+                String subj = cert.getSubjectX500Principal().getName();
+                String serial = cert.getSerialNumber().toString(16);
+                sb.append(subj).append("; serial=").append(serial).append("\n");
+                if (i == 0) {
+                    firstSubject = subj;
+                    firstSerial = serial;
+                }
             }
         }
         result.put("signersInfo", sb.toString());
+        result.put("signerSubject", firstSubject);
+        result.put("signerSerial", firstSerial);
         return result;
     }
 

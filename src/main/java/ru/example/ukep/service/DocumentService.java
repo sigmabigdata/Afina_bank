@@ -80,11 +80,14 @@ public class DocumentService {
     }
 
     @Transactional
-    public void saveSignature(Long id, User owner, String signatureBase64) {
+    public void saveSignature(Long id, User owner, String signatureBase64,
+                              String signerSubject, String signerSerial) {
         Document doc = getOwned(id, owner);
         doc.setSignatureBase64(signatureBase64);
         doc.setSigned(true);
         doc.setSignedAt(Instant.now());
+        doc.setSignerSubject(signerSubject);
+        doc.setSignerSerial(signerSerial);
         documentRepository.save(doc);
     }
 
