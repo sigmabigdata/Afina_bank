@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Регистрация</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <h2>Регистрация</h2>
+
+    <div th:if="${registered}" class="alert ok">
+        Регистрация принята. Мы отправили ссылку для подтверждения на
+        <b th:text="${email}"></b>. Проверьте почту.
+    </div>
+
+    <div th:if="${error}" class="alert err" th:text="${error}"></div>
+
+    <form th:unless="${registered}" method="post" th:action="@{/register}" th:object="${form}">
+        <label>Email
+            <input type="email" th:field="*{email}" required/>
+            <span class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span>
+        </label>
+        <label>ФИО
+            <input type="text" th:field="*{fullName}" required/>
+            <span class="field-error" th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}"></span>
+        </label>
+        <label>Телефон
+            <input type="tel" th:field="*{phone}" placeholder="+7 900 000-00-00" required/>
+            <span class="field-error" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></span>
+        </label>
+        <label>Пароль (8-16 символов, буквы, цифры, спецсимвол)
+            <input type="password" th:field="*{password}" required/>
+            <span class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></span>
+        </label>
+        <label>Повторите пароль
+            <input type="password" th:field="*{passwordConfirm}" required/>
+            <span class="field-error" th:if="${#fields.hasErrors('passwordConfirm')}" th:errors="*{passwordConfirm}"></span>
+        </label>
+        <button type="submit">Зарегистрироваться</button>
+    </form>
+
+    <p class="muted">Уже есть аккаунт? <a th:href="@{/login}">Войти</a></p>
+</div>
+</body>
+</html>

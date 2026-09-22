@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Подтверждение</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <div th:if="${success}" class="alert ok">
+        <h2>Регистрация подтверждена</h2>
+        <p>Теперь вы можете <a th:href="@{/login}">войти</a>.</p>
+    </div>
+    <div th:unless="${success}" class="alert err">
+        <h2>Ссылка недействительна</h2>
+        <p>Возможно, срок действия ссылки истёк. Зарегистрируйтесь повторно.</p>
+    </div>
+</div>
+</body>
+</html>

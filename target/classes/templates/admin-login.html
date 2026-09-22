@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход администратора</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <h2>Вход администратора</h2>
+    <p class="muted small">Доступно только с сервера (localhost).</p>
+    <div th:if="${param.error}" class="alert err">Неверные учётные данные</div>
+    <form method="post" th:action="@{/admin/login}">
+        <label>Email<input type="email" name="username" required/></label>
+        <label>Пароль<input type="password" name="password" required/></label>
+        <button type="submit">Войти</button>
+    </form>
+</div>
+</body>
+</html>

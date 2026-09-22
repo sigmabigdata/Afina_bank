@@ -1,0 +1,40 @@
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; color: #1f2430; background: #f5f7fa; }
+header { display: flex; justify-content: space-between; align-items: center;
+         padding: 14px 28px; background: #fff; border-bottom: 1px solid #e3e7ee; }
+.brand { font-weight: 700; color: #2454ff; }
+.user { display: flex; gap: 12px; align-items: center; }
+main { max-width: 1100px; margin: 24px auto; padding: 0 20px; }
+h1 { font-size: 22px; }
+.auth-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.auth-card { width: 100%; max-width: 420px; background: #fff; padding: 32px; border-radius: 12px;
+             box-shadow: 0 8px 24px rgba(30,40,80,.08); }
+.auth-card h2 { margin-top: 0; }
+label { display: block; margin: 12px 0 6px; font-size: 14px; }
+input, select { width: 100%; padding: 10px 12px; border: 1px solid #cfd6e4; border-radius: 8px; font-size: 14px; }
+button { padding: 10px 16px; border: none; background: #2454ff; color: #fff; border-radius: 8px;
+         cursor: pointer; font-size: 14px; }
+button:hover { background: #1a3fd6; }
+button.link { background: none; color: #2454ff; padding: 0; }
+button.link.danger { color: #d33; }
+.muted { color: #6a7285; font-size: 13px; }
+.muted.small { font-size: 12px; }
+.center { text-align: center; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 14px; }
+.alert.ok { background: #e6f7ec; color: #1e7a3d; }
+.alert.err { background: #fdeaea; color: #a82323; }
+.field-error { color: #d33; font-size: 12px; display: block; margin-top: 4px; }
+.upload-form { display: flex; gap: 10px; margin: 20px 0; }
+table.docs { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; }
+table.docs th, table.docs td { padding: 12px 14px; border-bottom: 1px solid #eef1f6; text-align: left; font-size: 14px; }
+table.docs th { background: #f8faff; font-weight: 600; }
+.badge { padding: 3px 8px; border-radius: 6px; font-size: 12px; }
+.badge.ok { background: #e6f7ec; color: #1e7a3d; }
+.badge.warn { background: #fff6e0; color: #a86a00; }
+.actions a, .actions button { text-decoration: none; background: none; color: #2454ff; border: none;
+                              cursor: pointer; font-size: 16px; padding: 4px 6px; }
+.actions { white-space: nowrap; }
+#status-toast { position: fixed; bottom: 24px; right: 24px; padding: 14px 18px; border-radius: 8px;
+                background: #1f2430; color: #fff; max-width: 480px; display: none; z-index: 1000; white-space: pre-wrap; }
+#status-toast.ok { background: #1e7a3d; }
+#status-toast.err { background: #a82323; }

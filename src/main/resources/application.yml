@@ -1,0 +1,26 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+app:
+  storage-path: ${APP_STORAGE_PATH:./storage/documents}
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  admin-ip-whitelist: ${ADMIN_IP_WHITELIST:127.0.0.1,::1,0:0:0:0:0:0:0:1}
+
+crypto:
+  pro:
+    provider-name: JCSP
+    tsp-url: ${TSP_URL:http://cryptopro.ru/tsp/tsp.srf}
+
+admin:
+  email: ${ADMIN_EMAIL:admin@local}
+  password: ${ADMIN_PASSWORD:ChangeMe_123!}
+  full-name: ${ADMIN_FULLNAME:Администратор}
+
+logging:
+  level:
+    ru.example.ukep: DEBUG

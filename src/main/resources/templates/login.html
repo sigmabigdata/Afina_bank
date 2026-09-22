@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <h2>Вход в систему</h2>
+    <div th:if="${param.error}" class="alert err">Неверный email или пароль, либо почта не подтверждена</div>
+    <div th:if="${param.logout}" class="alert ok">Вы вышли из системы</div>
+    <form method="post" th:action="@{/login}">
+        <label>Email
+            <input type="email" name="username" required autofocus/>
+        </label>
+        <label>Пароль
+            <input type="password" name="password" required/>
+        </label>
+        <button type="submit">Войти</button>
+    </form>
+    <p class="muted">Нет аккаунта? <a th:href="@{/register}">Регистрация</a></p>
+    <p class="muted small">Вход администратора доступен только с сервера: <code>/admin/login</code></p>
+</div>
+</body>
+</html>

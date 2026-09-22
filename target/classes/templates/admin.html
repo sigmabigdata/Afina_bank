@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+    <div class="brand">УКЭП Сервис • Админ</div>
+    <form method="post" th:action="@{/admin/logout}"><button class="link">Выйти</button></form>
+</header>
+<main>
+    <h1>Пользователи</h1>
+    <p>Всего документов: <b th:text="${docsCount}">0</b></p>
+    <table class="docs">
+        <thead><tr><th>ID</th><th>Email</th><th>ФИО</th><th>Телефон</th><th>Роль</th><th>Активен</th><th>Создан</th></tr></thead>
+        <tbody>
+        <tr th:each="u : ${users}">
+            <td th:text="${u.id}"></td>
+            <td th:text="${u.email}"></td>
+            <td th:text="${u.fullName}"></td>
+            <td th:text="${u.phone}"></td>
+            <td th:text="${u.role}"></td>
+            <td th:text="${u.enabled}"></td>
+            <td th:text="${#temporals.format(u.createdAt,'dd.MM.yyyy HH:mm')}"></td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>
