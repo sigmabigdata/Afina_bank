@@ -4,106 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="629cb8e2-fd82-42a7-b505-1af228fd1cca" name="Changes" comment="2 реализована подпись">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+    <list default="true" id="629cb8e2-fd82-42a7-b505-1af228fd1cca" name="Changes" comment="3 Реализована авторизация по сертификату">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/.package-lock.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/crypto-pro-cadesplugin/LICENSE.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/crypto-pro-cadesplugin/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/crypto-pro-cadesplugin/dist/index.cjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/crypto-pro-cadesplugin/dist/index.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node_modules/crypto-pro-cadesplugin/package.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/DataInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/DataInitializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AuthController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DashboardController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DashboardController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/SignApiController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/SignApiController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/dto/RegistrationForm.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/entity/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/entity/User.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/DocumentRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/DocumentRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/UserRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/UserRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/DocumentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/DocumentService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/EmailService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/EmailService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/SignatureService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/SignatureService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/UserService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application-dev.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application-dev.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application-prod.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application-prod.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/static/css/style.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/static/js/sign.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/static/js/sign.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/static/js/sign.js.bak" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-login.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin-login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/confirm-result.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/register.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/0c7c8822-378d-4273-ad45-62f4db2d3d6f______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/24624f91-92af-40e9-b2c8-6c099af6e1c5______-________________5257146385_20260731_083611.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/2f96eed6-8646-4148-944e-3cf50cc070c6_ul-1025203565529-20260803115954.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/37010b14-ad10-4e19-a439-6ce6a7fa0f9d_371100017073_04082026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/37410e45-b3ef-48b8-a8d9-d1c368b9bbab______-_________________-2002_5257056036_20260731_085328.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/48882bae-8a27-49ec-b53a-ea97394e8fdc______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/55da8dbf-6423-41ed-9260-092c4718f332______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/5c1defc0-d139-4389-bd7c-366af91673b1_5222014892_30072026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/61ef1c5f-6d94-4829-9132-31b7b1c788d7_____________H2D.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/696a136c-18c6-4477-9388-eea385aba1b5______-________________5257146385_20260731_083611.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/7a4e5639-da49-42bb-8ebe-79b8b3e0cdcd______-________________5257146385_20260731_083611.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/84802a50-3e54-4b02-8b67-9fd428f67835____0204-02.26-_2__________._.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/8a17d9a1-3bee-460b-b92d-a04b6c94b57d_371100017073_04082026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/95933c51-2486-4d63-9aa0-2c5e2dfcc60a____0204-02.26-_2__________._.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/9605d18d-cfff-40a8-a32c-772ff3fdfd1c_371100017073_04082026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/a1f80d2d-978a-4e2a-8476-5dcb20b3bc22______-_____________-_____5200000222_20260731_080443.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/a46d6a5f-0246-4d23-a7b0-da5cfec0d8e6_7750005919_30072026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/a5b30b01-0276-44f1-bc02-bd25f109ab1b______-_________________-2002_5257056036_20260731_085328.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/b26df29d-6007-4dde-be78-c2702e6e88fb______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/b4fee8e4-7680-43e2-ab10-cc9148aae59c______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/b989ea2d-4c66-45fd-abf3-4be38cf32a57_371100017073_04082026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/c8130a6a-5772-4429-97b3-94f3a8344b22______-_________________-2002_5257056036_20260731_085328.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/c8ce566b-a784-437e-94e2-934c03731744______-_____________-_____5200000222_20260731_080443.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/cfacc2b0-6797-412a-971f-69b9760096c1_371100017073_04082026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/d295ec70-cbbe-411c-a97f-0baaeec8ae08______-___________________-___5248039235_20260731_083722.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/d54ad12a-af0e-4bd5-a75f-83b59b84303d______-_____________-_____5200000222_20260731_080443.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/eba9d33a-b99e-4870-b9ea-4e34826c5420______-________________5257146385_20260731_083611.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/f495297e-516d-4a1b-9ea4-6b3c620eef6c______-_____________-_____5200000222_20260731_080443.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/f610f1a5-262f-4873-b130-d01216ed7759______-________________5257146385_20260731_083611.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/f643db1c-c741-439d-9cae-f5e922bc48cf__________________________.docx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/documents/fdfb89ff-3fc5-45fd-b0e4-2c2004bff7f0_7750005919_30072026.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/application-dev.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application-dev.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/application-prod.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application-prod.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/DataInitializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/DataInitializer.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig$1.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig$1.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AdminController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AdminController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AuthController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AuthController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DashboardController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DashboardController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/SignApiController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/SignApiController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/dto/RegistrationForm.class" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/entity/User.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/entity/User.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/DocumentRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/DocumentRepository.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/UserRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/UserRepository.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/DocumentService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/DocumentService.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/EmailService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/EmailService.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/SignatureService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/SignatureService.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/UserService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/UserService.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/static/css/style.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/static/js/sign.js" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/static/js/sign.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/static/js/sign.js.bak" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/admin-login.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/admin-login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/admin.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/admin.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/confirm-result.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/register.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -212,7 +114,15 @@
       <option name="project" value="LOCAL" />
       <updated>1790074041722</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="3 Реализована авторизация по сертификату">
+      <option name="closed" value="true" />
+      <created>1790145701565</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1790145701565</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -221,6 +131,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="1" />
     <MESSAGE value="2 реализована подпись" />
-    <option name="LAST_COMMIT_MESSAGE" value="2 реализована подпись" />
+    <MESSAGE value="3 Реализована авторизация по сертификату" />
+    <option name="LAST_COMMIT_MESSAGE" value="3 Реализована авторизация по сертификату" />
   </component>
 </project>
