@@ -2,25 +2,27 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Вход</title>
+    <title>УКЭП Сервис · Вход</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body class="auth-page">
 <div class="auth-card">
-    <h2>Вход в систему</h2>
-    <div th:if="${param.error}" class="alert err">Неверный email или пароль, либо почта не подтверждена</div>
+    <h2>Вход в личный кабинет</h2>
+    <p class="subtitle">Введите email — мы пришлём одноразовую ссылку для входа</p>
+
+    <div th:if="${error}" class="alert err" th:text="${error}"></div>
     <div th:if="${param.logout}" class="alert ok">Вы вышли из системы</div>
+    <div th:if="${param.invalid}" class="alert err">Ссылка недействительна или истекла. Запросите новую.</div>
+
     <form method="post" th:action="@{/login}">
-        <label>Email
-            <input type="email" name="username" required autofocus/>
-        </label>
-        <label>Пароль
-            <input type="password" name="password" required/>
-        </label>
-        <button type="submit">Войти</button>
+        <label>Email</label>
+        <input type="email" name="email" required autofocus autocomplete="email"/>
+        <button type="submit">Получить ссылку для входа</button>
     </form>
-    <p class="muted">Нет аккаунта? <a th:href="@{/register}">Регистрация</a></p>
-    <p class="muted small">Вход администратора доступен только с сервера: <code>/admin/login</code></p>
+
+    <p class="alt-action muted">
+        <a th:href="@{/admin/login}">Вход для администратора →</a>
+    </p>
 </div>
 </body>
 </html>

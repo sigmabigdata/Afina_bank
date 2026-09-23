@@ -1,61 +1,105 @@
 package ru.example.ukep.controller;
 
-import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import ru.example.ukep.dto.RegistrationForm;
+import ru.example.ukep.config.SecurityConfig;
+import ru.example.ukep.entity.User;
+import ru.example.ukep.service.EmailService;
 import ru.example.ukep.service.UserService;
+
+import java.util.List;
 
 @Controller
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final UserService userService;
+    private final EmailService emailService;
+    private final HttpSessionSecurityContextRepository userContextRepository;
 
     @Value("${app.base-url}")
     private String baseUrl;
 
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService,
+                          EmailService emailService,
+                          @Qualifier("userContextRepository")
+                          HttpSessionSecurityContextRepository userContextRepository) {
         this.userService = userService;
+        this.emailService = emailService;
+        this.userContextRepository = userContextRepository;
     }
 
     @GetMapping("/")
-    public String root() {
+    public String root(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return "redirect:/login";
         return "redirect:/dashboard";
     }
 
     @GetMapping("/login")
-    public String loginPage() {
+    public String loginPage(Authentication auth) {
+        if (auth != null && auth.isAuthenticated()) return "redirect:/dashboard";
         return "login";
     }
 
-    @GetMapping("/register")
-    public String registerPage(Model model) {
-        model.addAttribute("form", new RegistrationForm());
-        return "register";
-    }
-
-    @PostMapping("/register")
-    public String register(@Valid @ModelAttribute("form") RegistrationForm form,
-                           BindingResult br, Model model) {
-        if (br.hasErrors()) return "register";
-        try {
-            userService.register(form, baseUrl);
-            model.addAttribute("registered", true);
-            model.addAttribute("email", form.getEmail());
-            return "register";
-        } catch (IllegalArgumentException e) {
-            model.addAttribute("error", e.getMessage());
-            return "register";
+    @PostMapping("/login")
+    public String requestLoginLink(@RequestParam("email") String email, Model model) {
+        String link = userService.generateLoginLink(email, baseUrl);
+        if (link != null) {
+            emailService.sendLoginLink(email, link);
+        } else {
+            log.info("Login link requested for unknown/blocked email: {}", email);
         }
+        model.addAttribute("email", email);
+        return "login-sent";
     }
 
-    @GetMapping("/confirm")
-    public String confirm(@RequestParam("token") String token, Model model) {
-        boolean ok = userService.confirm(token);
-        model.addAttribute("success", ok);
-        return "confirm-result";
+    @GetMapping("/login/confirm")
+    public String confirmLogin(@RequestParam("token") String token,
+                               HttpServletRequest request,
+                               HttpServletResponse response,
+                               Model model) {
+        User user = userService.consumeLoginToken(token);
+        if (user == null) {
+            model.addAttribute("error", "Ссылка недействительна или истекла");
+            return "login";
+        }
+
+        var details = org.springframework.security.core.userdetails.User
+                .withUsername(user.getEmail())
+                .password("{noop}magic")
+                .authorities(List.of(new SimpleGrantedAuthority(user.getRole().name())))
+                .build();
+
+        var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
+        SecurityContext ctx = SecurityContextHolder.createEmptyContext();
+        ctx.setAuthentication(auth);
+        SecurityContextHolder.setContext(ctx);
+        userContextRepository.saveContext(ctx, request, response);
+
+        return "redirect:/dashboard";
+    }
+
+    @PostMapping("/logout")
+    public String logout(HttpServletRequest request) {
+        var session = request.getSession(false);
+        if (session != null) {
+            session.removeAttribute(SecurityConfig.USER_CTX_KEY);
+        }
+        SecurityContextHolder.clearContext();
+        return "redirect:/login?logout";
     }
 }

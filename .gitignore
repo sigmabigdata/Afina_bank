@@ -1,0 +1,28 @@
+# Env / секреты
+.env
+
+# Java / Maven
+target/
+*.class
+!libs/*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+._*
+
+# Node
+node_modules/
+package-lock.json
+
+# Runtime
+storage/documents/*
+!storage/documents/.gitkeep
+logs/
+*.log
+data/
+data

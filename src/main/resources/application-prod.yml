@@ -20,5 +20,5 @@ spring:
 
 app:
   mail:
-    mode: smtp
+    mode: ${MAIL_MODE:smtp}
     from: ${MAIL_FROM:noreply@example.com}

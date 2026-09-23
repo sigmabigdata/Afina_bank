@@ -3,6 +3,9 @@ import cadesplugin from './vendor/crypto-pro-cadesplugin.js';
 console.log('[sign.js] module loaded');
 
 document.addEventListener('DOMContentLoaded', function () {
+    // Префикс API: "/admin" — если страница админская, "" — если клиентская
+    var API_PREFIX = document.body.dataset.apiPrefix || '';
+
     var toast = document.createElement('div');
     toast.id = 'status-toast';
     document.body.appendChild(toast);
@@ -26,31 +29,33 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             show('Подготовка подписи...', 'info');
 
-            var respFile = await fetch('/documents/' + id + '/view', { credentials: 'same-origin' });
+            var respFile = await fetch(API_PREFIX + '/documents/' + id + '/view', { credentials: 'same-origin' });
             if (!respFile.ok) throw new Error('Файл не получен: HTTP ' + respFile.status);
             var buf = await respFile.arrayBuffer();
             var contentBase64 = arrayBufferToBase64(buf);
+            console.log('[sign.js] file loaded, bytes =', buf.byteLength);
 
             show('Ожидание плагина...', 'info');
             var api = await cadesplugin();
 
             show('Поиск сертификатов...', 'info');
             var certs = await api.getCertsList();
-            if (!certs || certs.length === 0) {
-                throw new Error('В хранилище «Личные» нет сертификатов');
-            }
+            if (!certs || certs.length === 0) throw new Error('В хранилище «Личные» нет сертификатов');
             var cert = certs[0];
 
             show('Подписание...', 'info');
             var signatureRaw = await api.signBase64(cert.thumbprint, contentBase64);
             var signatureB64 = sanitizeBase64(signatureRaw);
+            console.log('[sign.js] signature length =', signatureB64.length);
 
             show('Проверка подписи на сервере...', 'info');
             var headers = { 'Content-Type': 'application/json' };
             var csrf = getCsrf();
             if (csrf) headers[getCsrfHeader() || 'X-CSRF-TOKEN'] = csrf;
 
-            var resp = await fetch('/api/sign/accept', {
+            var endpoint = (API_PREFIX === '/admin') ? '/api/sign/admin/accept' : '/api/sign/accept';
+
+            var resp = await fetch(endpoint, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: headers,

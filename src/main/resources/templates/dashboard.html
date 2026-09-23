@@ -22,6 +22,8 @@
 </header>
 
 <main>
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
     <h1>Мои документы</h1>
 
     <form class="upload-form" method="post" th:action="@{/documents/upload}"

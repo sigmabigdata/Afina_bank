@@ -2,31 +2,88 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Админ</title>
+    <title>УКЭП Сервис · Админ · Дашборд</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
-<header>
-    <div class="brand">УКЭП Сервис • Админ</div>
-    <form method="post" th:action="@{/admin/logout}"><button class="link">Выйти</button></form>
+<header class="admin-header">
+    <div class="brand">УКЭП Сервис · Админ</div>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}" class="active">Дашборд</a>
+        <a th:href="@{/admin/documents}">Заявки</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
 </header>
+
 <main>
-    <h1>Пользователи</h1>
-    <p>Всего документов: <b th:text="${docsCount}">0</b></p>
+    <h1>Дашборд</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" th:text="${usersTotal}">0</div>
+            <div class="stat-label">Пользователей всего</div>
+            <div class="stat-sub">
+                активных: <b class="ok" th:text="${usersActive}">0</b> ·
+                ждут подтверждения: <b class="warn" th:text="${usersPending}">0</b>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" th:text="${docsTotal}">0</div>
+            <div class="stat-label">Заявок (документов) всего</div>
+            <div class="stat-sub">
+                подписано: <b class="ok" th:text="${docsSigned}">0</b> ·
+                не подписано: <b class="warn" th:text="${docsUnsigned}">0</b>
+            </div>
+        </div>
+    </div>
+
+    <h2>Последние заявки</h2>
     <table class="docs">
-        <thead><tr><th>ID</th><th>Email</th><th>ФИО</th><th>Телефон</th><th>Роль</th><th>Активен</th><th>Создан</th></tr></thead>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Документ</th>
+            <th>Клиент</th>
+            <th>Загружен</th>
+            <th>Статус</th>
+            <th></th>
+        </tr>
+        </thead>
         <tbody>
-        <tr th:each="u : ${users}">
-            <td th:text="${u.id}"></td>
-            <td th:text="${u.email}"></td>
-            <td th:text="${u.fullName}"></td>
-            <td th:text="${u.phone}"></td>
-            <td th:text="${u.role}"></td>
-            <td th:text="${u.enabled}"></td>
-            <td th:text="${#temporals.format(u.createdAt,'dd.MM.yyyy HH:mm')}"></td>
+        <tr th:each="d : ${recentDocs}">
+            <td th:text="${d.id}">1</td>
+            <td th:text="${d.originalName}">file.pdf</td>
+            <td>
+                <a th:href="@{'/admin/users/' + ${d.owner.id}}">
+                    <div th:text="${d.owner.fullName}">Иванов</div>
+                    <div class="muted small" th:text="${d.owner.email}">a@b.c</div>
+                </a>
+            </td>
+            <td th:text="${#temporals.format(d.uploadedAt,'dd.MM.yyyy HH:mm')}">—</td>
+            <td>
+                <span th:if="${d.signed}" class="badge ok">Подписан</span>
+                <span th:unless="${d.signed}" class="badge warn">Не подписан</span>
+            </td>
+            <td class="actions">
+                <a th:href="@{'/admin/documents/' + ${d.id} + '/download'}"
+                   title="Скачать документ">⬇</a>
+                <a th:if="${d.signed}"
+                   th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
+                   title="Скачать подпись">📎</a>
+            </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(recentDocs)}">
+            <td colspan="6" class="muted center">Пока нет ни одной заявки</td>
         </tr>
         </tbody>
     </table>
+
+    <p style="margin-top:20px">
+        <a th:href="@{/admin/documents}" class="btn btn-ghost">Все заявки →</a>
+    </p>
 </main>
 </body>
 </html>

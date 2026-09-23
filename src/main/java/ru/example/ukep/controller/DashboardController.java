@@ -1,6 +1,6 @@
 package ru.example.ukep.controller;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,9 +20,13 @@ public class DashboardController {
     }
 
     @GetMapping("/dashboard")
-    public String dashboard(@AuthenticationPrincipal org.springframework.security.core.userdetails.User principal,
-                            Model model) {
-        User user = userRepository.findByEmail(principal.getUsername()).orElseThrow();
+    public String dashboard(Authentication auth, Model model) {
+        // Админ не должен видеть клиентский кабинет — перенаправляем
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (isAdmin) return "redirect:/admin";
+
+        User user = userRepository.findByEmail(auth.getName()).orElseThrow();
         model.addAttribute("user", user);
         model.addAttribute("documents", documentService.listForUser(user));
         return "dashboard";

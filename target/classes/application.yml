@@ -5,22 +5,27 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+  thymeleaf:
+    encoding: UTF-8
+
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 app:
   storage-path: ${APP_STORAGE_PATH:./storage/documents}
   base-url: ${APP_BASE_URL:http://localhost:8080}
   admin-ip-whitelist: ${ADMIN_IP_WHITELIST:127.0.0.1,::1,0:0:0:0:0:0:0:1}
-
-crypto:
-  pro:
-    provider-name: JCSP
-    tsp-url: ${TSP_URL:http://cryptopro.ru/tsp/tsp.srf}
-
-admin:
-  email: ${ADMIN_EMAIL:admin@local}
-  password: ${ADMIN_PASSWORD:ChangeMe_123!}
-  full-name: ${ADMIN_FULLNAME:Администратор}
+  crl-path: ${CRL_PATH:./kontur-q-2025.crl}
+  admins-file: ${ADMINS_FILE:./admins.env}
+  mail:
+    mode: ${MAIL_MODE:log}
+    from: ${MAIL_FROM:noreply@example.com}
 
 logging:
   level:
     ru.example.ukep: DEBUG
+    org.springframework.security: INFO

@@ -1,19 +1,31 @@
 package ru.example.ukep.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import ru.example.ukep.service.UserService;
+import ru.example.ukep.service.AdminCredentialsFileService;
 
 @Configuration
 public class DataInitializer {
 
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
     @Bean
-    public ApplicationRunner initAdmin(UserService userService,
-                                       @Value("${admin.email}") String email,
-                                       @Value("${admin.password}") String password,
-                                       @Value("${admin.full-name}") String fullName) {
-        return args -> userService.createAdminIfMissing(email, password, fullName);
+    public ApplicationRunner logAdmins(AdminCredentialsFileService adminFile) {
+        return args -> {
+            var list = adminFile.readAll();
+            log.info("=== Администраторы (admins.env) ===");
+            if (list.isEmpty()) {
+                log.warn("⚠️  admins.env пуст — вход администратора невозможен!");
+                log.warn("    Добавьте строку: CN|SNILS");
+            } else {
+                for (var r : list) {
+                    log.info("CN='{}', SNILS=***{}", r.cn(),
+                            r.snils().length() >= 4 ? r.snils().substring(r.snils().length() - 4) : "***");
+                }
+            }
+        };
     }
 }

@@ -44,22 +44,19 @@ public class DocumentService {
     @Transactional
     public Document upload(MultipartFile file, User owner) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("Файл пустой");
-
-        String storedName = UUID.randomUUID() + "_" + sanitize(file.getOriginalFilename());
-        Path target = storageRoot.resolve(storedName);
+        String stored = UUID.randomUUID() + "_" + sanitize(file.getOriginalFilename());
+        Path target = storageRoot.resolve(stored);
         try (InputStream is = file.getInputStream()) {
             Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
         }
-
         Document doc = new Document();
         doc.setOriginalName(file.getOriginalFilename());
-        doc.setStoredName(storedName);
+        doc.setStoredName(stored);
         doc.setContentType(file.getContentType());
         doc.setSize(file.getSize());
         doc.setFileSha256(sha256(target));
         doc.setOwner(owner);
         doc.setUploadedAt(Instant.now());
-
         return documentRepository.save(doc);
     }
 
@@ -75,14 +72,13 @@ public class DocumentService {
         return new UrlResource(p.toUri());
     }
 
-    public Path getPath(Document doc) {
-        return storageRoot.resolve(doc.getStoredName());
-    }
+    public Path getPath(Document doc) { return storageRoot.resolve(doc.getStoredName()); }
 
     @Transactional
-    public void saveSignature(Long id, User owner, String signatureBase64,
+    public void saveSignature(Long docId, User owner, String signatureBase64,
                               String signerSubject, String signerSerial) {
-        Document doc = getOwned(id, owner);
+        Document doc = documentRepository.findById(docId)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
         doc.setSignatureBase64(signatureBase64);
         doc.setSigned(true);
         doc.setSignedAt(Instant.now());
@@ -91,10 +87,7 @@ public class DocumentService {
         documentRepository.save(doc);
     }
 
-    private String sanitize(String name) {
-        if (name == null) return "file";
-        return name.replaceAll("[^a-zA-Z0-9._-]", "_");
-    }
+    private String sanitize(String n) { return n == null ? "file" : n.replaceAll("[^a-zA-Z0-9._-]", "_"); }
 
     private String sha256(Path path) throws IOException {
         try {
@@ -105,8 +98,6 @@ public class DocumentService {
                 while ((n = is.read(buf)) > 0) md.update(buf, 0, n);
             }
             return HexFormat.of().formatHex(md.digest());
-        } catch (Exception e) {
-            throw new IOException(e);
-        }
+        } catch (Exception e) { throw new IOException(e); }
     }
 }

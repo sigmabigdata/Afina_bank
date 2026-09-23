@@ -2,19 +2,33 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Вход администратора</title>
+    <title>УКЭП Сервис · Вход администратора</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body class="auth-page">
-<div class="auth-card">
+<div class="auth-card admin-auth">
     <h2>Вход администратора</h2>
-    <p class="muted small">Доступно только с сервера (localhost).</p>
-    <div th:if="${param.error}" class="alert err">Неверные учётные данные</div>
-    <form method="post" th:action="@{/admin/login}">
-        <label>Email<input type="email" name="username" required/></label>
-        <label>Пароль<input type="password" name="password" required/></label>
-        <button type="submit">Войти</button>
-    </form>
+    <p class="subtitle">Доступно только с сервера и только по сертификату УКЭП</p>
+
+    <div th:if="${param.logout}" class="alert ok">Вы вышли из системы</div>
+    <div id="error-box" class="alert err" style="display:none"></div>
+
+    <button id="btn-cert-login" type="button" style="width:100%; padding:12px; font-size:15px;">
+        🔐 Войти с УКЭП
+    </button>
+
+    <p id="status" class="muted small" style="text-align:center;margin-top:14px;"></p>
+
+    <p class="alt-action muted" style="margin-top:24px;">
+        <a th:href="@{/login}">← Вход для клиентов</a>
+    </p>
 </div>
+
+<object id="cadesplugin" type="application/x-cades"
+        classid="clsid:3F367B61-B3B9-4F5A-BCD6-827DA1C5C7D2"
+        style="width:0;height:0"></object>
+
+<script src="https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js"></script>
+<script type="module" th:src="@{/js/admin-login.js}"></script>
 </body>
 </html>

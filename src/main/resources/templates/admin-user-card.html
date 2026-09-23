@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>УКЭП Сервис · Админ · Карточка клиента</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script src="https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js"></script>
+</head>
+<body data-api-prefix="/admin">
+<header class="admin-header">
+    <div class="brand">УКЭП Сервис · Админ</div>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/documents}">Заявки</a>
+        <a th:href="@{/admin/users}" class="active">Клиенты</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <p><a th:href="@{/admin/users}" class="btn-ghost">← Ко всем клиентам</a></p>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <div class="client-card">
+        <div>
+            <div class="user-avatar big"
+                 th:classappend="${user.role.name() == 'ROLE_ADMIN'} ? ' gray' : ''"
+                 th:text="${#strings.substring(user.fullName, 0, 1)}">И</div>
+        </div>
+        <div>
+            <h1 th:text="${user.fullName}">Иванов Иван</h1>
+            <div class="client-meta">
+                <div><span class="muted">Email:</span> <b th:text="${user.email}">a@b.c</b></div>
+                <div><span class="muted">Телефон:</span> <b th:text="${user.phone} ?: '—'">—</b></div>
+                <div>
+                    <span class="muted">Роль:</span>
+                    <span th:if="${user.role.name() == 'ROLE_ADMIN'}" class="badge admin">Админ</span>
+                    <span th:unless="${user.role.name() == 'ROLE_ADMIN'}" class="badge">Клиент</span>
+                </div>
+                <div>
+                    <span class="muted">Статус:</span>
+                    <span th:if="${user.enabled}" class="badge ok">Активен</span>
+                    <span th:unless="${user.enabled}" class="badge warn">Заблокирован</span>
+                </div>
+                <div><span class="muted">Регистрация:</span>
+                    <b th:text="${#temporals.format(user.createdAt,'dd.MM.yyyy HH:mm')}">—</b></div>
+                <div th:if="${user.lastLoginAt != null}">
+                    <span class="muted">Последний вход:</span>
+                    <b th:text="${#temporals.format(user.lastLoginAt,'dd.MM.yyyy HH:mm')}">—</b>
+                </div>
+            </div>
+
+            <div class="client-stats">
+                <div><div class="stat-mini-value" th:text="${docsTotal}">0</div>
+                    <div class="stat-mini-label">Всего документов</div></div>
+                <div><div class="stat-mini-value ok" th:text="${docsSigned}">0</div>
+                    <div class="stat-mini-label">Подписано</div></div>
+                <div><div class="stat-mini-value warn" th:text="${docsTotal - docsSigned}">0</div>
+                    <div class="stat-mini-label">Без подписи</div></div>
+            </div>
+
+            <div class="client-actions">
+                <a th:href="@{'/admin/users/' + ${user.id} + '/edit'}" class="btn btn-ghost">✎ Редактировать</a>
+
+                <form th:if="${user.role.name() != 'ROLE_ADMIN' && user.enabled}"
+                      method="post"
+                      th:action="@{'/admin/users/' + ${user.id} + '/send-login-link'}"
+                      style="display:inline">
+                    <button type="submit" class="btn">✉ Отправить ссылку для входа</button>
+                </form>
+
+                <a th:href="@{'/admin/users/' + ${user.id} + '/signatures.zip'}"
+                   class="btn-sig" th:if="${docsSigned > 0}">
+                    📦 Скачать все подписи (.zip)
+                </a>
+
+                <form th:if="${user.role.name() != 'ROLE_ADMIN'}"
+                      method="post"
+                      th:action="@{'/admin/users/' + ${user.id} + '/toggle'}"
+                      style="display:inline">
+                    <input type="hidden" name="back" value="card"/>
+                    <button type="submit"
+                            th:classappend="${user.enabled} ? 'btn-ghost' : 'btn'"
+                            th:text="${user.enabled ? '🚫 Заблокировать' : '✓ Разблокировать'}">—</button>
+                </form>
+
+                <form th:if="${user.role.name() != 'ROLE_ADMIN'}"
+                      method="post"
+                      th:action="@{'/admin/users/' + ${user.id} + '/delete'}"
+                      onsubmit="return confirm('Удалить клиента и все его документы?');"
+                      style="display:inline">
+                    <button type="submit" class="btn-danger">🗑 Удалить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <h2>Документы клиента</h2>
+    <table class="docs">
+        <thead><tr>
+            <th>ID</th><th>Документ</th><th>Размер</th><th>Загружен</th>
+            <th>Статус</th><th>Подпись</th><th></th>
+        </tr></thead>
+        <tbody>
+        <tr th:each="d : ${documents}">
+            <td th:text="${d.id}">1</td>
+            <td th:text="${d.originalName}">file.pdf</td>
+            <td th:text="${#numbers.formatDecimal(d.size/1024.0,1,1)} + ' KB'">0</td>
+            <td th:text="${#temporals.format(d.uploadedAt,'dd.MM.yyyy HH:mm')}">—</td>
+            <td>
+                <span th:if="${d.signed}" class="badge ok">Подписан</span>
+                <span th:unless="${d.signed}" class="badge warn">Не подписан</span>
+            </td>
+            <td>
+                <div th:if="${d.signed}">
+                    <div class="muted small" th:text="${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</div>
+                    <div class="small" th:text="${d.signerSubject}">ФИО</div>
+                </div>
+                <span th:unless="${d.signed}" class="muted small">—</span>
+            </td>
+            <td class="actions">
+                <a th:href="@{'/admin/documents/' + ${d.id} + '/view'}"
+                   target="_blank" title="Просмотреть">👁</a>
+                <a th:href="@{'/admin/documents/' + ${d.id} + '/download'}"
+                   title="Скачать документ">⬇</a>
+                <button type="button" class="btn-sign" th:attr="data-id=${d.id}"
+                        title="Подписать">✍</button>
+                <a th:if="${d.signed}"
+                   th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
+                   title="Скачать подпись">📎</a>
+            </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(documents)}">
+            <td colspan="7" class="muted center">У этого клиента пока нет документов</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+
+<script type="module" th:src="@{/js/sign.js}"></script>
+</body>
+</html>

@@ -1,24 +1,42 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: ukep-postgres
     environment:
       POSTGRES_DB: ukep
-      POSTGRES_USER: ukep
+      POSTGRES_USER: ${DB_USER:-ukep}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ukep}
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ukep}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build: .
+    container_name: ukep-app
     env_file: .env
-    depends_on: [postgres]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/ukep
+      DB_USER: ${DB_USER:-ukep}
+      DB_PASSWORD: ${DB_PASSWORD:-ukep}
+      APP_STORAGE_PATH: /app/storage/documents
+      ADMINS_FILE: /app/admins.env
+      CRL_PATH: /app/kontur-q-2025.crl
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
     volumes:
       - ./storage:/app/storage
+      - ./admins.env:/app/admins.env
+      - ./kontur-q-2025.crl:/app/kontur-q-2025.crl:ro
     restart: unless-stopped
 
 volumes:
-  pg_data:
+  pgdata:

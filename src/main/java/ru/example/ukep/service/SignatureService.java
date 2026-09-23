@@ -5,6 +5,8 @@ import ru.CryptoPro.CAdES.CAdESSignature;
 import ru.CryptoPro.CAdES.CAdESSigner;
 import ru.CryptoPro.CAdES.CAdESType;
 
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,17 +22,36 @@ import java.util.Set;
 @Service
 public class SignatureService {
 
+    /** Кэш CN последней проверенной подписи (для синхронной логики verify→extract). */
+    private final ThreadLocal<String> lastCn = new ThreadLocal<>();
+
     public Map<String, Object> verifyDetached(Path contentPath,
                                               String signatureBase64,
                                               Path crlPath) throws Exception {
         byte[] data = Files.readAllBytes(contentPath);
+        return verifyDetached(data, signatureBase64, crlPath);
+    }
 
+    public Map<String, Object> verifyDetached(byte[] data,
+                                              String signatureBase64,
+                                              Path crlPath) throws Exception {
+        return verifyInternal(data, signatureBase64, crlPath);
+    }
+
+    public Map<String, Object> verifyDetached(byte[] data,
+                                              String signatureBase64,
+                                              String crlPath) throws Exception {
+        return verifyInternal(data, signatureBase64, Path.of(crlPath));
+    }
+
+    private Map<String, Object> verifyInternal(byte[] data,
+                                               String signatureBase64,
+                                               Path crlPath) throws Exception {
         String cleaned = signatureBase64
                 .replaceAll("-----BEGIN[^-]*-----", "")
                 .replaceAll("-----END[^-]*-----", "")
                 .replaceAll("\\s+", "")
                 .replaceAll("[^A-Za-z0-9+/=]", "");
-
         byte[] signatureBytes = Base64.getDecoder().decode(cleaned);
 
         CAdESSignature cades = new CAdESSignature(signatureBytes, data, CAdESType.CAdES_BES);
@@ -42,25 +63,51 @@ public class SignatureService {
         result.put("valid", true);
         result.put("signersCount", signers.length);
 
-        StringBuilder sb = new StringBuilder();
-        String firstSubject = "";
+        StringBuilder fullInfo = new StringBuilder();
+        String firstCn = "";
         String firstSerial = "";
         for (int i = 0; i < signers.length; i++) {
             X509Certificate cert = signers[i].getSignerCertificate();
             if (cert != null) {
-                String subj = cert.getSubjectX500Principal().getName();
+                String fullDn = cert.getSubjectX500Principal().getName();
+                String cn = extractCn(fullDn);
                 String serial = cert.getSerialNumber().toString(16);
-                sb.append(subj).append("; serial=").append(serial).append("\n");
+                fullInfo.append(fullDn).append("; serial=").append(serial).append("\n");
                 if (i == 0) {
-                    firstSubject = subj;
+                    firstCn = cn;
                     firstSerial = serial;
                 }
             }
         }
-        result.put("signersInfo", sb.toString());
-        result.put("signerSubject", firstSubject);
+        result.put("signersInfo", fullInfo.toString());
+        result.put("signerSubject", firstCn);
         result.put("signerSerial", firstSerial);
+
+        // Запоминаем CN в thread-local, чтобы контроллер мог его прочитать
+        lastCn.set(firstCn);
+
         return result;
+    }
+
+    /** CN подписанта из последней проверенной подписи (в этом потоке). */
+    public String extractCnFromLastSignature() {
+        return lastCn.get();
+    }
+
+    public String extractCn(String x500) {
+        if (x500 == null) return "";
+        try {
+            LdapName ln = new LdapName(x500);
+            for (Rdn rdn : ln.getRdns()) {
+                if ("CN".equalsIgnoreCase(rdn.getType())) {
+                    return String.valueOf(rdn.getValue());
+                }
+            }
+        } catch (Exception ignored) {}
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("CN=([^,]+)", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(x500);
+        return m.find() ? m.group(1).replace("\"", "").trim() : x500;
     }
 
     private Set<X509CRL> loadCrl(Path crlPath) throws Exception {

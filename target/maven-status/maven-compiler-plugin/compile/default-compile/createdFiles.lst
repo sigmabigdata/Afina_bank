@@ -1,11 +1,11 @@
 ru/example/ukep/service/DocumentService.class
 ru/example/ukep/controller/AuthController.class
-ru/example/ukep/dto/RegistrationForm.class
 ru/example/ukep/config/SecurityConfig$1.class
 ru/example/ukep/controller/AdminController.class
 ru/example/ukep/controller/GlobalExceptionHandler.class
 ru/example/ukep/controller/DashboardController.class
 ru/example/ukep/config/DataInitializer.class
+ru/example/ukep/controller/AdminCertAuthController.class
 ru/example/ukep/service/SignatureService.class
 ru/example/ukep/dto/SignRequest.class
 ru/example/ukep/repository/DocumentRepository.class
@@ -14,7 +14,10 @@ ru/example/ukep/UkepSignApplication.class
 ru/example/ukep/service/EmailService.class
 ru/example/ukep/config/CryptoProInitializer.class
 ru/example/ukep/entity/Role.class
+ru/example/ukep/dto/CertLoginRequest.class
 ru/example/ukep/entity/Document.class
+ru/example/ukep/service/AdminCredentialsFileService$AdminRecord.class
+ru/example/ukep/service/AdminCredentialsFileService.class
 ru/example/ukep/service/UserService.class
 ru/example/ukep/config/SecurityConfig.class
 ru/example/ukep/entity/User.class

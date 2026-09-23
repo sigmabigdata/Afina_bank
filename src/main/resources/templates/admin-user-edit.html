@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${mode == 'create'} ? 'Новый клиент' : 'Редактирование'">—</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <div class="brand">УКЭП Сервис · Админ</div>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/documents}">Заявки</a>
+        <a th:href="@{/admin/users}" class="active">Клиенты</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <p><a th:href="${mode == 'create'} ? @{/admin/users} : @{'/admin/users/' + ${user.id}}"
+          class="btn-ghost">← Назад</a></p>
+
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <h1 th:text="${mode == 'create'} ? 'Новый клиент' : 'Редактирование клиента'">—</h1>
+
+    <form class="form-card" method="post"
+          th:action="${mode == 'create'} ? @{/admin/users} : @{'/admin/users/' + ${user.id}}">
+
+        <div class="form-field">
+            <label>Email *</label>
+            <input type="email" name="email" required
+                   th:value="${mode == 'edit'} ? ${user.email} : ''" autocomplete="off"/>
+        </div>
+
+        <div class="form-field">
+            <label>ФИО</label>
+            <input type="text" name="fullName"
+                   th:value="${mode == 'edit'} ? ${user.fullName} : ''"/>
+        </div>
+
+        <div class="form-field">
+            <label>Телефон</label>
+            <input type="text" name="phone"
+                   th:value="${mode == 'edit' && user.phone != null} ? ${user.phone} : ''"/>
+        </div>
+
+        <div class="checkbox-field">
+            <input type="checkbox" id="enabled" name="enabled" value="true"
+                   th:checked="${mode == 'create' ? true : user.enabled}"/>
+            <label for="enabled" style="margin:0;font-weight:400;">Активен</label>
+        </div>
+
+        <div class="alert info" style="background:#e6efff;color:#1e3d7a">
+            <b>Пароль не нужен.</b> Клиент входит по одноразовой ссылке, которую вы отправляете кнопкой
+            «Отправить ссылку для входа» в его карточке.
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" th:text="${mode == 'create'} ? 'Создать' : 'Сохранить'">Сохранить</button>
+            <a th:href="${mode == 'create'} ? @{/admin/users} : @{'/admin/users/' + ${user.id}}"
+               class="btn-ghost">Отмена</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

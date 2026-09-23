@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>УКЭП Сервис · Админ · Клиенты</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <div class="brand">УКЭП Сервис · Админ</div>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/documents}">Заявки</a>
+        <a th:href="@{/admin/users}" class="active">Клиенты</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h1 style="margin:0;">Клиенты</h1>
+        <a th:href="@{/admin/users/new}" class="btn">+ Создать клиента</a>
+    </div>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <form method="get" th:action="@{/admin/users}" class="filters-form">
+        <input type="text" name="q" th:value="${q}"
+               placeholder="Поиск: ФИО, email, телефон"/>
+        <select name="status">
+            <option value="" th:selected="${status == ''}">Все статусы</option>
+            <option value="active" th:selected="${status == 'active'}">Активные</option>
+            <option value="pending" th:selected="${status == 'pending'}">Не подтверждённые</option>
+        </select>
+        <select name="role">
+            <option value="" th:selected="${role == ''}">Все роли</option>
+            <option value="client" th:selected="${role == 'client'}">Клиенты</option>
+            <option value="admin" th:selected="${role == 'admin'}">Администраторы</option>
+        </select>
+        <button type="submit">Применить</button>
+        <a th:href="@{/admin/users}" class="btn-ghost">Сбросить</a>
+    </form>
+
+    <div class="users-grid">
+        <a th:each="u : ${users}"
+           th:href="@{'/admin/users/' + ${u.id}}"
+           class="user-card">
+            <div class="user-card-head">
+                <div class="user-avatar"
+                     th:classappend="${u.role.name() == 'ROLE_ADMIN'} ? ' gray' : ''"
+                     th:text="${#strings.substring(u.fullName, 0, 1)}">И</div>
+                <div class="user-card-name-block">
+                    <div class="user-card-name" th:text="${u.fullName}">Иванов Иван</div>
+                    <div class="user-card-email" th:text="${u.email}">a@b.c</div>
+                </div>
+            </div>
+            <div class="user-card-row">
+                <span class="muted small">Телефон</span>
+                <span th:text="${u.phone} ?: '—'">—</span>
+            </div>
+            <div class="user-card-row">
+                <span class="muted small">Роль</span>
+                <span th:if="${u.role.name() == 'ROLE_ADMIN'}" class="badge admin">Админ</span>
+                <span th:unless="${u.role.name() == 'ROLE_ADMIN'}" class="badge">Клиент</span>
+            </div>
+            <div class="user-card-row">
+                <span class="muted small">Статус</span>
+                <span th:if="${u.enabled}" class="badge ok">Активен</span>
+                <span th:unless="${u.enabled}" class="badge warn">Заблокирован</span>
+            </div>
+            <div class="user-card-row">
+                <span class="muted small">Регистрация</span>
+                <span th:text="${#temporals.format(u.createdAt,'dd.MM.yyyy HH:mm')}">—</span>
+            </div>
+        </a>
+
+        <div th:if="${#lists.isEmpty(users)}" class="empty">
+            Нет клиентов по заданным условиям
+        </div>
+    </div>
+</main>
+</body>
+</html>

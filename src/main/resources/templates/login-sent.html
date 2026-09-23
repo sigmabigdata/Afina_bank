@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>УКЭП Сервис · Проверьте почту</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <div class="alert ok">
+        <h3 style="margin-top:0">Ссылка отправлена</h3>
+        <p>Мы отправили одноразовую ссылку для входа на <b th:text="${email}"></b>.</p>
+        <p class="muted small">Ссылка действует 30 минут. Если не видите письмо — проверьте папку «Спам».</p>
+    </div>
+    <p class="alt-action muted">
+        <a th:href="@{/login}">← Ввести другой email</a>
+    </p>
+</div>
+</body>
+</html>

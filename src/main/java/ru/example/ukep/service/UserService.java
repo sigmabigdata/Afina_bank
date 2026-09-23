@@ -4,16 +4,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.example.ukep.dto.RegistrationForm;
 import ru.example.ukep.entity.Role;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.UserRepository;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,88 +19,138 @@ import java.util.UUID;
 @Service
 public class UserService implements UserDetailsService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
+    public static final Duration LOGIN_TOKEN_TTL = Duration.ofMinutes(30);
 
-    public UserService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       EmailService emailService) {
+    private final UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.emailService = emailService;
     }
 
-    // === UserDetailsService ===
+    // ============ Spring Security ============
 
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User u = userRepository.findByEmail(username.toLowerCase())
+        User u = userRepository.findByEmail(username.toLowerCase().trim())
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден: " + username));
-
         return org.springframework.security.core.userdetails.User
                 .withUsername(u.getEmail())
-                .password(u.getPasswordHash())
+                .password("{noop}magic")
                 .disabled(!u.isEnabled())
                 .authorities(List.of(new SimpleGrantedAuthority(u.getRole().name())))
                 .build();
     }
 
-    // === Регистрация ===
+    // ============ Magic-link для клиентов ============
 
     @Transactional
-    public User register(RegistrationForm form, String baseUrl) {
-        if (!form.getPassword().equals(form.getPasswordConfirm())) {
-            throw new IllegalArgumentException("Пароли не совпадают");
-        }
-        if (userRepository.existsByEmail(form.getEmail().toLowerCase())) {
-            throw new IllegalArgumentException("Пользователь с таким email уже существует");
-        }
-
-        User user = new User();
-        user.setEmail(form.getEmail().toLowerCase());
-        user.setFullName(form.getFullName());
-        user.setPhone(form.getPhone());
-        user.setPasswordHash(passwordEncoder.encode(form.getPassword()));
-        user.setRole(Role.ROLE_USER);
-        user.setEnabled(false);
-        user.setConfirmationToken(UUID.randomUUID().toString());
-        user.setConfirmationExpires(Instant.now().plus(24, ChronoUnit.HOURS));
-
-        user = userRepository.save(user);
-
-        String url = baseUrl + "/confirm?token=" + user.getConfirmationToken();
-        emailService.sendConfirmation(user.getEmail(), url);
-
-        return user;
-    }
-
-    @Transactional
-    public boolean confirm(String token) {
-        Optional<User> opt = userRepository.findByConfirmationToken(token);
-        if (opt.isEmpty()) return false;
+    public String generateLoginLink(String email, String baseUrl) {
+        Optional<User> opt = userRepository.findByEmail(email.toLowerCase().trim());
+        if (opt.isEmpty()) return null;
         User u = opt.get();
-        if (u.getConfirmationExpires() == null || u.getConfirmationExpires().isBefore(Instant.now())) {
-            return false;
-        }
-        u.setEnabled(true);
-        u.setConfirmationToken(null);
-        u.setConfirmationExpires(null);
+        if (!u.isEnabled()) return null;
+
+        String token = UUID.randomUUID().toString().replace("-", "");
+        u.setLoginToken(token);
+        u.setLoginTokenExpires(Instant.now().plus(LOGIN_TOKEN_TTL));
         userRepository.save(u);
-        return true;
+
+        return baseUrl + "/login/confirm?token=" + token;
     }
 
     @Transactional
-    public void createAdminIfMissing(String email, String rawPassword, String fullName) {
-        Optional<User> existing = userRepository.findByEmail(email.toLowerCase());
-        if (existing.isPresent()) return;
-        User u = new User();
-        u.setEmail(email.toLowerCase());
-        u.setFullName(fullName);
-        u.setPasswordHash(passwordEncoder.encode(rawPassword));
+    public User consumeLoginToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        Optional<User> opt = userRepository.findByLoginToken(token);
+        if (opt.isEmpty()) return null;
+        User u = opt.get();
+        if (u.getLoginTokenExpires() == null || u.getLoginTokenExpires().isBefore(Instant.now())) {
+            return null;
+        }
+        u.setLoginToken(null);
+        u.setLoginTokenExpires(null);
+        u.setLastLoginAt(Instant.now());
+        return userRepository.save(u);
+    }
+
+    // ============ Админ по сертификату ============
+
+    /**
+     * Создаёт или возвращает запись админа, привязанную к CN и СНИЛС.
+     * Email генерируется из CN+snils для уникальности.
+     */
+    @Transactional
+    public User upsertAdminByCert(String cn, String snils) {
+        String syntheticEmail = buildAdminEmail(cn, snils);
+        User u = userRepository.findByEmail(syntheticEmail).orElseGet(User::new);
+        u.setEmail(syntheticEmail);
+        u.setFullName(cn);
         u.setRole(Role.ROLE_ADMIN);
         u.setEnabled(true);
+        u.setLoginToken(null);
+        u.setLoginTokenExpires(null);
+        return userRepository.save(u);
+    }
+
+    public static String buildAdminEmail(String cn, String snils) {
+        String safeCn = cn == null ? "admin" : cn.trim().toLowerCase()
+                .replaceAll("[^a-z0-9]+", ".")
+                .replaceAll("^\\.|\\.$", "");
+        return safeCn + "+" + snils + "@ukep.local";
+    }
+
+    // ============ CRUD пользователей (для админа) ============
+
+    @Transactional
+    public User adminCreate(String email, String fullName, String phone, Role role, boolean enabled) {
+        if (email == null || email.isBlank())
+            throw new IllegalArgumentException("Email обязателен");
+        if (userRepository.existsByEmail(email.toLowerCase()))
+            throw new IllegalArgumentException("Email уже занят");
+
+        User u = new User();
+        u.setEmail(email.toLowerCase().trim());
+        u.setFullName(fullName == null || fullName.isBlank() ? email : fullName.trim());
+        u.setPhone(phone == null ? null : phone.trim());
+        u.setRole(role == null ? Role.ROLE_USER : role);
+        u.setEnabled(enabled);
+        return userRepository.save(u);
+    }
+
+    @Transactional
+    public User adminUpdate(Long id, String email, String fullName, String phone,
+                            Role role, boolean enabled) {
+        User u = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
+        if (email != null && !email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
+            if (userRepository.existsByEmail(email.toLowerCase()))
+                throw new IllegalArgumentException("Email уже занят");
+            u.setEmail(email.toLowerCase().trim());
+        }
+        if (fullName != null && !fullName.isBlank()) u.setFullName(fullName.trim());
+        u.setPhone(phone == null ? null : phone.trim());
+        if (role != null) u.setRole(role);
+        u.setEnabled(enabled);
+        return userRepository.save(u);
+    }
+
+    @Transactional
+    public void adminDelete(Long id) {
+        User u = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+        if (u.getRole() == Role.ROLE_ADMIN)
+            throw new IllegalArgumentException("Нельзя удалить администратора через эту форму");
+        userRepository.delete(u);
+    }
+
+    @Transactional
+    public void adminToggle(Long id) {
+        User u = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+        if (u.getRole() == Role.ROLE_ADMIN) return;
+        u.setEnabled(!u.isEnabled());
         userRepository.save(u);
     }
 }
