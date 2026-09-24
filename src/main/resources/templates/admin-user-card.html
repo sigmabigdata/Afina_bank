@@ -2,16 +2,18 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>УКЭП Сервис · Админ · Карточка клиента</title>
+    <title>Афина · Админ · Карточка клиента</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
     <script src="https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js"></script>
 </head>
 <body data-api-prefix="/admin">
 <header class="admin-header">
-    <div class="brand">УКЭП Сервис · Админ</div>
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
     <nav class="admin-nav">
         <a th:href="@{/admin}">Дашборд</a>
-        <a th:href="@{/admin/documents}">Заявки</a>
         <a th:href="@{/admin/users}" class="active">Клиенты</a>
     </nav>
     <form method="post" th:action="@{/admin/logout}" style="display:inline">
@@ -32,10 +34,18 @@
                  th:text="${#strings.substring(user.fullName, 0, 1)}">И</div>
         </div>
         <div>
-            <h1 th:text="${user.fullName}">Иванов Иван</h1>
+            <h1 class="client-name" th:text="${user.fullName}">Иванов Иван Иванович</h1>
+            <div style="margin-bottom:18px; display:flex; gap:8px; align-items:center;">
+                <span th:if="${user.role.name() == ROLE_ADMIN}" class="badge admin" style="font-size:13px; padding:5px 14px;">🛡️ Администратор</span>
+                <span th:unless="${user.role.name() == ROLE_ADMIN}" class="badge" style="font-size:13px; padding:5px 14px;">Клиент</span>
+            </div>
+            <div class="client-name-sub" th:text="${user.email}">client@example.com</div>
+
             <div class="client-meta">
-                <div><span class="muted">Email:</span> <b th:text="${user.email}">a@b.c</b></div>
-                <div><span class="muted">Телефон:</span> <b th:text="${user.phone} ?: '—'">—</b></div>
+                <div>
+                    <span class="muted">Телефон:</span>
+                    <b th:text="${user.phone} ?: '—'">—</b>
+                </div>
                 <div>
                     <span class="muted">Роль:</span>
                     <span th:if="${user.role.name() == 'ROLE_ADMIN'}" class="badge admin">Админ</span>
@@ -46,8 +56,10 @@
                     <span th:if="${user.enabled}" class="badge ok">Активен</span>
                     <span th:unless="${user.enabled}" class="badge warn">Заблокирован</span>
                 </div>
-                <div><span class="muted">Регистрация:</span>
-                    <b th:text="${#temporals.format(user.createdAt,'dd.MM.yyyy HH:mm')}">—</b></div>
+                <div>
+                    <span class="muted">Регистрация:</span>
+                    <b th:text="${#temporals.format(user.createdAt,'dd.MM.yyyy HH:mm')}">—</b>
+                </div>
                 <div th:if="${user.lastLoginAt != null}">
                     <span class="muted">Последний вход:</span>
                     <b th:text="${#temporals.format(user.lastLoginAt,'dd.MM.yyyy HH:mm')}">—</b>
@@ -55,16 +67,24 @@
             </div>
 
             <div class="client-stats">
-                <div><div class="stat-mini-value" th:text="${docsTotal}">0</div>
-                    <div class="stat-mini-label">Всего документов</div></div>
-                <div><div class="stat-mini-value ok" th:text="${docsSigned}">0</div>
-                    <div class="stat-mini-label">Подписано</div></div>
-                <div><div class="stat-mini-value warn" th:text="${docsTotal - docsSigned}">0</div>
-                    <div class="stat-mini-label">Без подписи</div></div>
+                <div>
+                    <div class="stat-mini-value" th:text="${docsTotal}">0</div>
+                    <div class="stat-mini-label">Всего документов</div>
+                </div>
+                <div>
+                    <div class="stat-mini-value ok" th:text="${docsSigned}">0</div>
+                    <div class="stat-mini-label">Подписано</div>
+                </div>
+                <div>
+                    <div class="stat-mini-value warn"
+                         th:text="${docsTotal - docsSigned}">0</div>
+                    <div class="stat-mini-label">Без подписи</div>
+                </div>
             </div>
 
             <div class="client-actions">
-                <a th:href="@{'/admin/users/' + ${user.id} + '/edit'}" class="btn btn-ghost">✎ Редактировать</a>
+                <a th:href="@{'/admin/users/' + ${user.id} + '/edit'}"
+                   class="btn-ghost">✎ Редактировать</a>
 
                 <form th:if="${user.role.name() != 'ROLE_ADMIN' && user.enabled}"
                       method="post"
@@ -85,13 +105,15 @@
                     <input type="hidden" name="back" value="card"/>
                     <button type="submit"
                             th:classappend="${user.enabled} ? 'btn-ghost' : 'btn'"
-                            th:text="${user.enabled ? '🚫 Заблокировать' : '✓ Разблокировать'}">—</button>
+                            th:text="${user.enabled ? '🚫 Заблокировать' : '✓ Разблокировать'}">
+                        Заблокировать
+                    </button>
                 </form>
 
                 <form th:if="${user.role.name() != 'ROLE_ADMIN'}"
                       method="post"
                       th:action="@{'/admin/users/' + ${user.id} + '/delete'}"
-                      onsubmit="return confirm('Удалить клиента и все его документы?');"
+                      onsubmit="return confirm('Удалить клиента и все его документы? Действие необратимо.');"
                       style="display:inline">
                     <button type="submit" class="btn-danger">🗑 Удалить</button>
                 </form>
@@ -117,7 +139,8 @@
             </td>
             <td>
                 <div th:if="${d.signed}">
-                    <div class="muted small" th:text="${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</div>
+                    <div class="muted small"
+                         th:text="${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</div>
                     <div class="small" th:text="${d.signerSubject}">ФИО</div>
                 </div>
                 <span th:unless="${d.signed}" class="muted small">—</span>

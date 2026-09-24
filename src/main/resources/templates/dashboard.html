@@ -1,22 +1,23 @@
-
 <!DOCTYPE html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Личный кабинет</title>
+    <title>Афина · Личный кабинет</title>
     <meta name="_csrf" th:content="${_csrf.token}"/>
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
     <link rel="stylesheet" th:href="@{/css/style.css}">
-
     <script src="https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js"></script>
 </head>
 <body>
-<header>
-    <div class="brand">УКЭП Сервис</div>
-    <div class="user">
+<header class="app-header">
+    <a th:href="@{/dashboard}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <div class="header-user">
         <span th:text="${user.fullName}">Пользователь</span>
         <form method="post" th:action="@{/logout}" style="display:inline">
-            <button class="link" type="submit">Выйти</button>
+            <button class="btn-ghost btn-sm" type="submit">Выйти</button>
         </form>
     </div>
 </header>
@@ -24,6 +25,7 @@
 <main>
     <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
     <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
     <h1>Мои документы</h1>
 
     <form class="upload-form" method="post" th:action="@{/documents/upload}"
@@ -34,8 +36,6 @@
 
     <div class="docs-list">
         <div th:each="d : ${documents}" class="doc-card" th:attr="data-id=${d.id}">
-
-            <!-- Карточка документа -->
             <div class="doc-row">
                 <div class="doc-name" th:text="${d.originalName}">file.pdf</div>
                 <div class="doc-meta">
@@ -56,23 +56,20 @@
                 </div>
             </div>
 
-            <!-- Блок подписи: показывается ТОЛЬКО для подписанных документов -->
             <div th:if="${d.signed}" class="sig-block">
                 <div class="sig-icon">✓</div>
                 <div class="sig-info">
                     <div class="sig-title">Электронная подпись (CAdES-BES, отсоединённая)</div>
                     <div class="sig-subject" th:text="${d.signerSubject}">CN=...</div>
                     <div class="sig-meta">
-                        <span th:text="'Отпечаток: ' + ${d.signerSerial}">serial</span>
-                        <span>·</span>
                         <span th:text="'Подписан: ' + ${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</span>
                     </div>
                 </div>
                 <div class="sig-actions">
                     <a th:href="@{'/documents/' + ${d.id} + '/signature/download'}"
-                       class="btn-sig" title="Скачать подпись (.sig)">⬇ Подпись (.sig)</a>
+                       class="btn-sig">⬇ Подпись (.sig)</a>
                     <a th:href="@{'/documents/' + ${d.id} + '/download-signed'}"
-                       class="btn-sig" title="Скачать документ + подпись (.zip)">📦 Документ + подпись</a>
+                       class="btn-sig">📦 Документ + подпись</a>
                 </div>
             </div>
         </div>
@@ -82,10 +79,6 @@
         </div>
     </div>
 </main>
-
-<object id="cadesplugin" type="application/x-cades"
-        classid="clsid:3F367B61-B3B9-4F5A-BCD6-827DA1C5C7D2"
-        style="width:0;height:0"></object>
 
 <script type="module" th:src="@{/js/sign.js}"></script>
 </body>

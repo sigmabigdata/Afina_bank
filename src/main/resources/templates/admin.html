@@ -2,15 +2,17 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>УКЭП Сервис · Админ · Дашборд</title>
+    <title>Афина · Админ · Дашборд</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <header class="admin-header">
-    <div class="brand">УКЭП Сервис · Админ</div>
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
     <nav class="admin-nav">
         <a th:href="@{/admin}" class="active">Дашборд</a>
-        <a th:href="@{/admin/documents}">Заявки</a>
         <a th:href="@{/admin/users}">Клиенты</a>
     </nav>
     <form method="post" th:action="@{/admin/logout}" style="display:inline">
@@ -24,15 +26,15 @@
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-value" th:text="${usersTotal}">0</div>
-            <div class="stat-label">Пользователей всего</div>
+            <div class="stat-label">Клиентов всего</div>
             <div class="stat-sub">
                 активных: <b class="ok" th:text="${usersActive}">0</b> ·
-                ждут подтверждения: <b class="warn" th:text="${usersPending}">0</b>
+                заблокированных: <b class="warn" th:text="${usersPending}">0</b>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-value" th:text="${docsTotal}">0</div>
-            <div class="stat-label">Заявок (документов) всего</div>
+            <div class="stat-label">Документов всего</div>
             <div class="stat-sub">
                 подписано: <b class="ok" th:text="${docsSigned}">0</b> ·
                 не подписано: <b class="warn" th:text="${docsUnsigned}">0</b>
@@ -40,7 +42,7 @@
         </div>
     </div>
 
-    <h2>Последние заявки</h2>
+    <h2>Последние документы</h2>
     <table class="docs">
         <thead>
         <tr>
@@ -76,13 +78,13 @@
             </td>
         </tr>
         <tr th:if="${#lists.isEmpty(recentDocs)}">
-            <td colspan="6" class="muted center">Пока нет ни одной заявки</td>
+            <td colspan="6" class="muted center">Пока нет ни одного документа</td>
         </tr>
         </tbody>
     </table>
 
     <p style="margin-top:20px">
-        <a th:href="@{/admin/documents}" class="btn btn-ghost">Все заявки →</a>
+        <a th:href="@{/admin/users}" class="btn-ghost">Все клиенты →</a>
     </p>
 </main>
 </body>

@@ -23,7 +23,9 @@ public class DataInitializer {
             } else {
                 for (var r : list) {
                     log.info("CN='{}', SNILS=***{}", r.cn(),
-                            r.snils().length() >= 4 ? r.snils().substring(r.snils().length() - 4) : "***");
+                            r.snils().length() >= 4
+                                    ? r.snils().substring(r.snils().length() - 4)
+                                    : "***");
                 }
             }
         };

@@ -2,15 +2,17 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>УКЭП Сервис · Админ · Клиенты</title>
+    <title>Афина · Админ · Клиенты</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <header class="admin-header">
-    <div class="brand">УКЭП Сервис · Админ</div>
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
     <nav class="admin-nav">
         <a th:href="@{/admin}">Дашборд</a>
-        <a th:href="@{/admin/documents}">Заявки</a>
         <a th:href="@{/admin/users}" class="active">Клиенты</a>
     </nav>
     <form method="post" th:action="@{/admin/logout}" style="display:inline">
@@ -20,7 +22,7 @@
 
 <main>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <h1 style="margin:0;">Клиенты</h1>
+        <h1 style="margin:0;">Клиенты и администраторы</h1>
         <a th:href="@{/admin/users/new}" class="btn">+ Создать клиента</a>
     </div>
 
@@ -33,52 +35,82 @@
         <select name="status">
             <option value="" th:selected="${status == ''}">Все статусы</option>
             <option value="active" th:selected="${status == 'active'}">Активные</option>
-            <option value="pending" th:selected="${status == 'pending'}">Не подтверждённые</option>
-        </select>
-        <select name="role">
-            <option value="" th:selected="${role == ''}">Все роли</option>
-            <option value="client" th:selected="${role == 'client'}">Клиенты</option>
-            <option value="admin" th:selected="${role == 'admin'}">Администраторы</option>
+            <option value="pending" th:selected="${status == 'pending'}">Заблокированные</option>
         </select>
         <button type="submit">Применить</button>
         <a th:href="@{/admin/users}" class="btn-ghost">Сбросить</a>
     </form>
 
     <div class="users-grid">
-        <a th:each="u : ${users}"
-           th:href="@{'/admin/users/' + ${u.id}}"
-           class="user-card">
-            <div class="user-card-head">
-                <div class="user-avatar"
-                     th:classappend="${u.role.name() == 'ROLE_ADMIN'} ? ' gray' : ''"
-                     th:text="${#strings.substring(u.fullName, 0, 1)}">И</div>
-                <div class="user-card-name-block">
-                    <div class="user-card-name" th:text="${u.fullName}">Иванов Иван</div>
-                    <div class="user-card-email" th:text="${u.email}">a@b.c</div>
+        <div th:each="u : ${users}" class="user-card">
+            <a th:href="@{'/admin/users/' + ${u.id}}" style="text-decoration:none;color:inherit;">
+                <div class="user-card-head">
+                    <div class="user-avatar"
+                         th:classappend="${u.role.name() == 'ROLE_ADMIN'} ? ' gray' : ''"
+                         th:text="${#strings.substring(u.fullName, 0, 1)}">И</div>
+                    <div class="user-card-name-block">
+                        <div class="user-card-name" th:text="${u.fullName}">Иванов Иван</div>
+                        <div class="user-card-email" th:text="${u.email}">a@b.c</div>
+                    </div>
                 </div>
+
+                <!-- Бейдж роли -->
+                <div style="margin-bottom:10px;">
+                    <span th:if="${u.role.name() == 'ROLE_ADMIN'}"
+                          class="badge admin"
+                          style="font-size:12px; padding:4px 12px;">
+                        🛡️ Администратор
+                    </span>
+                    <span th:unless="${u.role.name() == 'ROLE_ADMIN'}"
+                          class="badge"
+                          style="font-size:12px; padding:4px 12px;">
+                        Клиент
+                    </span>
+                </div>
+
+                <div class="user-card-row">
+                    <span class="muted small">Телефон</span>
+                    <span th:text="${u.phone} ?: '—'">—</span>
+                </div>
+                <div class="user-card-row">
+                    <span class="muted small">Статус</span>
+                    <span th:if="${u.enabled}" class="badge ok">Активен</span>
+                    <span th:unless="${u.enabled}" class="badge warn">Заблокирован</span>
+                </div>
+                <div class="user-card-row">
+                    <span class="muted small">Регистрация</span>
+                    <span th:text="${#temporals.format(u.createdAt,'dd.MM.yyyy HH:mm')}">—</span>
+                </div>
+            </a>
+
+            <div class="user-card-actions">
+                <a th:href="@{'/admin/users/' + ${u.id} + '/edit'}"
+                   class="btn-ghost btn-sm" title="Редактировать">✎ Изменить</a>
+
+                <!-- Блокировка только для клиентов -->
+                <form th:if="${u.role.name() != 'ROLE_ADMIN'}"
+                      method="post"
+                      th:action="@{'/admin/users/' + ${u.id} + '/toggle'}"
+                      style="display:inline">
+                    <button type="submit"
+                            th:classappend="${u.enabled} ? 'btn-ghost btn-sm' : 'btn btn-sm'"
+                            th:text="${u.enabled ? '🚫 Заблокировать' : '✓ Разблокировать'}">
+                        Заблокировать
+                    </button>
+                </form>
+
+                <!-- Удаление для всех, включая админов -->
+                <form method="post"
+                      th:action="@{'/admin/users/' + ${u.id} + '/delete'}"
+                      onsubmit="return confirm('Удалить пользователя? Действие необратимо.');"
+                      style="display:inline; margin-left:auto;">
+                    <button type="submit" class="btn-danger btn-sm" title="Удалить">🗑</button>
+                </form>
             </div>
-            <div class="user-card-row">
-                <span class="muted small">Телефон</span>
-                <span th:text="${u.phone} ?: '—'">—</span>
-            </div>
-            <div class="user-card-row">
-                <span class="muted small">Роль</span>
-                <span th:if="${u.role.name() == 'ROLE_ADMIN'}" class="badge admin">Админ</span>
-                <span th:unless="${u.role.name() == 'ROLE_ADMIN'}" class="badge">Клиент</span>
-            </div>
-            <div class="user-card-row">
-                <span class="muted small">Статус</span>
-                <span th:if="${u.enabled}" class="badge ok">Активен</span>
-                <span th:unless="${u.enabled}" class="badge warn">Заблокирован</span>
-            </div>
-            <div class="user-card-row">
-                <span class="muted small">Регистрация</span>
-                <span th:text="${#temporals.format(u.createdAt,'dd.MM.yyyy HH:mm')}">—</span>
-            </div>
-        </a>
+        </div>
 
         <div th:if="${#lists.isEmpty(users)}" class="empty">
-            Нет клиентов по заданным условиям
+            Нет пользователей по заданным условиям
         </div>
     </div>
 </main>

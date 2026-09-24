@@ -7,6 +7,15 @@ spring:
       max-request-size: 50MB
   thymeleaf:
     encoding: UTF-8
+  datasource:
+    hikari:
+      minimum-idle: 3
+      maximum-pool-size: 10
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      keepalive-time: 300000
+      connection-test-query: "SELECT 1"
 
 server:
   servlet:
@@ -14,6 +23,10 @@ server:
       charset: UTF-8
       enabled: true
       force: true
+  tomcat:
+    connection-timeout: 60000
+    keep-alive-timeout: 60000
+    max-keep-alive-requests: 200
 
 app:
   storage-path: ${APP_STORAGE_PATH:./storage/documents}
@@ -29,3 +42,4 @@ logging:
   level:
     ru.example.ukep: DEBUG
     org.springframework.security: INFO
+    com.zaxxer.hikari: INFO

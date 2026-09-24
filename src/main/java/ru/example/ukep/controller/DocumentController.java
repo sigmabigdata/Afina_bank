@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -70,9 +72,6 @@ public class DocumentController {
                 .body(r);
     }
 
-    /**
-     * Скачать подпись .sig (отсоединённая CAdES-BES в DER).
-     */
     @GetMapping("/{id}/signature/download")
     public ResponseEntity<byte[]> downloadSignature(@PathVariable Long id,
                                                     @AuthenticationPrincipal UserDetails p) {
@@ -83,10 +82,7 @@ public class DocumentController {
         byte[] sigBytes = Base64.getDecoder().decode(
                 doc.getSignatureBase64().replaceAll("\\s+", ""));
 
-        String baseName = doc.getOriginalName();
-        int dot = baseName.lastIndexOf('.');
-        if (dot > 0) baseName = baseName.substring(0, dot);
-
+        String baseName = stripExtension(doc.getOriginalName());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
@@ -96,6 +92,7 @@ public class DocumentController {
 
     /**
      * Скачать ZIP: документ + подпись.
+     * Имена уникальны на случай, если расширение документа совпадает.
      */
     @GetMapping("/{id}/download-signed")
     public ResponseEntity<byte[]> downloadSignedZip(@PathVariable Long id,
@@ -109,22 +106,23 @@ public class DocumentController {
         byte[] sigBytes = Base64.getDecoder().decode(
                 doc.getSignatureBase64().replaceAll("\\s+", ""));
 
-        String baseName = doc.getOriginalName();
-        int dot = baseName.lastIndexOf('.');
-        String sigName = (dot > 0 ? baseName.substring(0, dot) : baseName) + ".sig";
+        String base = stripExtension(doc.getOriginalName());
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Set<String> usedNames = new HashSet<>();
         try (ZipOutputStream zip = new ZipOutputStream(baos)) {
-            zip.putNextEntry(new ZipEntry(doc.getOriginalName()));
+            String docEntry = uniqueEntryName(doc.getOriginalName(), usedNames);
+            zip.putNextEntry(new ZipEntry(docEntry));
             zip.write(docBytes);
             zip.closeEntry();
 
-            zip.putNextEntry(new ZipEntry(sigName));
+            String sigEntry = uniqueEntryName(base + ".sig", usedNames);
+            zip.putNextEntry(new ZipEntry(sigEntry));
             zip.write(sigBytes);
             zip.closeEntry();
         }
 
-        String zipName = (dot > 0 ? baseName.substring(0, dot) : baseName) + "_signed.zip";
+        String zipName = base + "_signed.zip";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
@@ -137,5 +135,25 @@ public class DocumentController {
                          @AuthenticationPrincipal UserDetails p) throws IOException {
         documentService.delete(id, current(p));
         return "redirect:/dashboard";
+    }
+
+    private static String stripExtension(String name) {
+        if (name == null) return "file";
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    private static String uniqueEntryName(String desired, Set<String> used) {
+        if (used.add(desired)) return desired;
+        int dot = desired.lastIndexOf('.');
+        String base = dot > 0 ? desired.substring(0, dot) : desired;
+        String ext = dot > 0 ? desired.substring(dot) : "";
+        int i = 1;
+        String candidate;
+        do {
+            candidate = base + "_" + i + ext;
+            i++;
+        } while (!used.add(candidate));
+        return candidate;
     }
 }

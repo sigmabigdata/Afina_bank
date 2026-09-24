@@ -20,7 +20,9 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -63,43 +65,19 @@ public class AdminController {
         return "admin";
     }
 
-    // ==================== ЗАЯВКИ ====================
-    @GetMapping("/documents")
-    public String documents(@RequestParam(required = false) String status,
-                            @RequestParam(required = false) String q,
-                            Model model) {
-        Boolean sf = null;
-        if ("signed".equalsIgnoreCase(status)) sf = true;
-        else if ("unsigned".equalsIgnoreCase(status)) sf = false;
-        String qn = (q == null || q.isBlank()) ? null : q.trim();
-
-        model.addAttribute("documents", documentRepository.searchForAdmin(sf, qn));
-        model.addAttribute("status", status == null ? "" : status);
-        model.addAttribute("q", qn == null ? "" : qn);
-        model.addAttribute("signedCount", documentRepository.countBySignedTrue());
-        model.addAttribute("unsignedCount", documentRepository.countBySignedFalse());
-        return "admin-documents";
-    }
-
     // ==================== КЛИЕНТЫ ====================
     @GetMapping("/users")
     public String users(@RequestParam(required = false) String status,
-                        @RequestParam(required = false) String role,
                         @RequestParam(required = false) String q,
                         Model model) {
         Boolean ef = null;
         if ("active".equalsIgnoreCase(status)) ef = true;
         else if ("pending".equalsIgnoreCase(status)) ef = false;
 
-        Role rf = null;
-        if ("admin".equalsIgnoreCase(role)) rf = Role.ROLE_ADMIN;
-        else if ("client".equalsIgnoreCase(role)) rf = Role.ROLE_USER;
-
         String qn = (q == null || q.isBlank()) ? null : q.trim();
 
-        model.addAttribute("users", userRepository.searchForAdmin(ef, rf, qn));
+        model.addAttribute("users", userRepository.searchForAdmin(ef, null, qn));
         model.addAttribute("status", status == null ? "" : status);
-        model.addAttribute("role", role == null ? "" : role);
         model.addAttribute("q", qn == null ? "" : qn);
         return "admin-users";
     }
@@ -188,10 +166,12 @@ public class AdminController {
     }
 
     @PostMapping("/users/{id}/delete")
-    public String deleteUser(@PathVariable Long id, RedirectAttributes ra) {
+    public String deleteUser(@PathVariable Long id,
+                             java.security.Principal principal,
+                             RedirectAttributes ra) {
         try {
-            userService.adminDelete(id);
-            ra.addFlashAttribute("ok", "Клиент удалён");
+            userService.adminDelete(id, principal.getName());
+            ra.addFlashAttribute("ok", "Пользователь удалён");
             return "redirect:/admin/users";
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("err", e.getMessage());
@@ -252,23 +232,28 @@ public class AdminController {
                 .body(sig);
     }
 
+    /**
+     * Скачать ZIP со всеми подписями клиента.
+     * Имена внутри архива делаются уникальными: name.sig, name_1.sig, name_2.sig...
+     */
     @GetMapping("/users/{id}/signatures.zip")
     public ResponseEntity<byte[]> downloadAllSignatures(@PathVariable Long id) throws IOException {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
         List<Document> docs = documentRepository.findAllByOwnerOrderByUploadedAtDesc(user)
                 .stream().filter(Document::isSigned).toList();
         if (docs.isEmpty()) return ResponseEntity.notFound().build();
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Set<String> usedNames = new HashSet<>();
         try (ZipOutputStream zip = new ZipOutputStream(baos)) {
             for (Document d : docs) {
                 if (d.getSignatureBase64() == null) continue;
                 byte[] sig = Base64.getDecoder().decode(d.getSignatureBase64().replaceAll("\\s+", ""));
-                String n = d.getOriginalName();
-                int dot = n.lastIndexOf('.');
-                if (dot > 0) n = n.substring(0, dot);
-                zip.putNextEntry(new ZipEntry(n + ".sig"));
+                String base = stripExtension(d.getOriginalName());
+                String entry = uniqueEntryName(base + ".sig", usedNames);
+                zip.putNextEntry(new ZipEntry(entry));
                 zip.write(sig);
                 zip.closeEntry();
             }
@@ -279,5 +264,27 @@ public class AdminController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
                         URLEncoder.encode(zn, StandardCharsets.UTF_8))
                 .body(baos.toByteArray());
+    }
+
+    /** Имя файла без расширения. */
+    private static String stripExtension(String name) {
+        if (name == null) return "file";
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    /** Делает имя уникальным: name.sig → name.sig, name_1.sig, name_2.sig. */
+    private static String uniqueEntryName(String desired, Set<String> used) {
+        if (used.add(desired)) return desired;
+        int dot = desired.lastIndexOf('.');
+        String base = dot > 0 ? desired.substring(0, dot) : desired;
+        String ext = dot > 0 ? desired.substring(dot) : "";
+        int i = 1;
+        String candidate;
+        do {
+            candidate = base + "_" + i + ext;
+            i++;
+        } while (!used.add(candidate));
+        return candidate;
     }
 }

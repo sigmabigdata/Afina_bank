@@ -76,10 +76,6 @@ public class UserService implements UserDetailsService {
 
     // ============ Админ по сертификату ============
 
-    /**
-     * Создаёт или возвращает запись админа, привязанную к CN и СНИЛС.
-     * Email генерируется из CN+snils для уникальности.
-     */
     @Transactional
     public User upsertAdminByCert(String cn, String snils) {
         String syntheticEmail = buildAdminEmail(cn, snils);
@@ -100,7 +96,7 @@ public class UserService implements UserDetailsService {
         return safeCn + "+" + snils + "@ukep.local";
     }
 
-    // ============ CRUD пользователей (для админа) ============
+    // ============ CRUD ============
 
     @Transactional
     public User adminCreate(String email, String fullName, String phone, Role role, boolean enabled) {
@@ -136,12 +132,17 @@ public class UserService implements UserDetailsService {
         return userRepository.save(u);
     }
 
+    /**
+     * Удаление пользователя. currentAdminEmail — email текущего админа,
+     * чтобы запретить удаление самого себя.
+     */
     @Transactional
-    public void adminDelete(Long id) {
+    public void adminDelete(Long id, String currentAdminEmail) {
         User u = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
-        if (u.getRole() == Role.ROLE_ADMIN)
-            throw new IllegalArgumentException("Нельзя удалить администратора через эту форму");
+        if (currentAdminEmail != null && u.getEmail().equalsIgnoreCase(currentAdminEmail)) {
+            throw new IllegalArgumentException("Нельзя удалить собственную учётную запись");
+        }
         userRepository.delete(u);
     }
 
@@ -149,7 +150,10 @@ public class UserService implements UserDetailsService {
     public void adminToggle(Long id) {
         User u = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
-        if (u.getRole() == Role.ROLE_ADMIN) return;
+        // Админов не блокируем — у них вход по сертификату, вне сессии их «заблокировать» нельзя
+        if (u.getRole() == Role.ROLE_ADMIN) {
+            throw new IllegalArgumentException("Нельзя заблокировать администратора");
+        }
         u.setEnabled(!u.isEnabled());
         userRepository.save(u);
     }

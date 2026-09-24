@@ -14,6 +14,7 @@
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/entity/User.java
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/entity/Role.java
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/controller/SignApiController.java
+/Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/config/DatabaseKeepAlive.java
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/entity/Document.java
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/controller/AuthController.java
 /Users/timeshadow/Documents/Projects/ukep-sign-service/src/main/java/ru/example/ukep/controller/AdminCertAuthController.java

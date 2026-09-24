@@ -2,6 +2,7 @@ ru/example/ukep/service/DocumentService.class
 ru/example/ukep/controller/AuthController.class
 ru/example/ukep/config/SecurityConfig$1.class
 ru/example/ukep/controller/AdminController.class
+ru/example/ukep/config/DatabaseKeepAlive.class
 ru/example/ukep/controller/GlobalExceptionHandler.class
 ru/example/ukep/controller/DashboardController.class
 ru/example/ukep/config/DataInitializer.class

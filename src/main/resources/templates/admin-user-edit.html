@@ -2,15 +2,17 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title th:text="${mode == 'create'} ? 'Новый клиент' : 'Редактирование'">—</title>
+    <title th:text="${mode == 'create'} ? 'Афина · Новый клиент' : 'Афина · Редактирование'">—</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <header class="admin-header">
-    <div class="brand">УКЭП Сервис · Админ</div>
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
     <nav class="admin-nav">
         <a th:href="@{/admin}">Дашборд</a>
-        <a th:href="@{/admin/documents}">Заявки</a>
         <a th:href="@{/admin/users}" class="active">Клиенты</a>
     </nav>
     <form method="post" th:action="@{/admin/logout}" style="display:inline">
@@ -53,9 +55,9 @@
             <label for="enabled" style="margin:0;font-weight:400;">Активен</label>
         </div>
 
-        <div class="alert info" style="background:#e6efff;color:#1e3d7a">
-            <b>Пароль не нужен.</b> Клиент входит по одноразовой ссылке, которую вы отправляете кнопкой
-            «Отправить ссылку для входа» в его карточке.
+        <div class="alert info">
+            <b>Пароль не нужен.</b> Клиент входит по одноразовой ссылке, которую вы отправляете
+            кнопкой «Отправить ссылку для входа» в его карточке.
         </div>
 
         <div class="form-actions">

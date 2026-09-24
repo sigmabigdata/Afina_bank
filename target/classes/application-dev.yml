@@ -1,7 +1,5 @@
 spring:
   datasource:
-    # Файловая H2 — данные сохраняются в ./data/ukep.mv.db
-    # AUTO_SERVER=TRUE позволяет подключиться из IDE одновременно с приложением
     url: jdbc:h2:file:./data/ukep;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
@@ -10,8 +8,6 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-    properties:
-      hibernate.dialect: org.hibernate.dialect.H2Dialect
   h2:
     console:
       enabled: true
