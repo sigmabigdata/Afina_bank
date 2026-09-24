@@ -1,28 +1,29 @@
-# Env / секреты
+# Secrets
 .env
+.env.prod
+admins.env
 
-# Java / Maven
+# Runtime
 target/
-*.class
-!libs/*.jar
+data/
+logs/
+backups/
+pgdata/
+storage/documents/*
+!storage/documents/.gitkeep
+
+# Docker
+caddy_data/
+caddy_config/
+
+# CryptoPro dist (большой файл)
+cryptopro-dist/
 
 # IDE
 .idea/
 *.iml
 .vscode/
 
-# macOS
+# OS
 .DS_Store
 ._*
-
-# Node
-node_modules/
-package-lock.json
-
-# Runtime
-storage/documents/*
-!storage/documents/.gitkeep
-logs/
-*.log
-data/
-data

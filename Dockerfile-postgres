@@ -1,0 +1,12 @@
+# PostgreSQL 16 (Debian) с pgaudit из стандартного репозитория.
+# Debian-образ содержит pgaudit как отдельный пакет.
+
+FROM postgres:16
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        postgresql-16-pgaudit && \
+    rm -rf /var/lib/apt/lists/*
+
+# Проверяем установку
+RUN ls /usr/lib/postgresql/16/lib/ | grep -i audit

@@ -3,9 +3,8 @@ package ru.example.ukep.config;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import ru.CryptoPro.CAdES.CAdESConfig;
-import ru.CryptoPro.JCSP.JCSP;
 
 import java.security.Security;
 
@@ -14,40 +13,68 @@ public class CryptoProInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(CryptoProInitializer.class);
 
+    /** Флаг для отключения CryptoPro в средах, где он не установлен. */
+    @Value("${crypto.pro.enabled:true}")
+    private boolean enabled;
+
     @PostConstruct
     public void init() {
         System.setProperty("file.encoding", "UTF-8");
+
+        if (!enabled) {
+            log.warn("CryptoPro отключён через crypto.pro.enabled=false");
+            log.warn("Проверка подписи работать не будет. Это допустимо в dev/test.");
+            return;
+        }
+
+        // ============================================================
+        // Системные свойства для проверки отзыва (CRL/OCSP).
+        // БЕЗ них CAdES падает с "Could not determine revocation status".
+        // ============================================================
+        System.setProperty("com.sun.security.enableCRLDP", "true");
+        System.setProperty("com.ibm.security.enableCRLDP", "true");
+        System.setProperty("ocsp.enable", "true");
+        System.setProperty("com.sun.security.enableAIAcaIssuers", "true");
+        System.setProperty("ru.CryptoPro.reprov.enableAIAcaIssuers", "true");
+        System.setProperty("ru.CryptoPro.reprov.enableCRLDP", "true");
+
+        log.info("Установлены системные свойства для проверки CRL/OCSP");
+
         try {
             // 1. Провайдер JCSP
-            if (Security.getProvider(JCSP.PROVIDER_NAME) == null) {
-                Security.addProvider(new JCSP());
-                log.info("CryptoPro JCSP provider registered: {}", JCSP.PROVIDER_NAME);
+            Class<?> jcspCls = Class.forName("ru.CryptoPro.JCSP.JCSP");
+            Object provider = jcspCls.getDeclaredConstructor().newInstance();
+            String name = (String) jcspCls.getField("PROVIDER_NAME").get(null);
+            if (Security.getProvider(name) == null) {
+                Security.addProvider((java.security.Provider) provider);
+                log.info("CryptoPro JCSP provider registered: {}", name);
             }
 
-            // 2. Провайдер RevCheck — правильный класс: ru.CryptoPro.reprov.RevCheck
-            if (Security.getProvider("RevCheck") == null) {
+            // 2. Провайдер RevCheck (правильный класс — ru.CryptoPro.reprov.RevCheck)
+            try {
                 Class<?> revCls = Class.forName("ru.CryptoPro.reprov.RevCheck");
-                Security.addProvider((java.security.Provider) revCls.getDeclaredConstructor().newInstance());
-                log.info("CryptoPro RevCheck provider registered");
+                if (Security.getProvider("RevCheck") == null) {
+                    Security.addProvider(
+                            (java.security.Provider) revCls.getDeclaredConstructor().newInstance());
+                    log.info("CryptoPro RevCheck provider registered");
+                }
+            } catch (Throwable t) {
+                log.warn("RevCheck не зарегистрирован: {}", t.getMessage());
             }
 
-            // 3. Устанавливаем JCSP как провайдер по умолчанию для CAdES.
-            //    Без этого CAdES пытается использовать JCP и падает с "no such provider: RevCheck".
-            CAdESConfig.setDefaultProvider(JCSP.PROVIDER_NAME);
-            log.info("CAdES default provider set to {}", JCSP.PROVIDER_NAME);
-
-            // Включаем онлайн-проверку отзыва по CRL (для Oracle JDK)
-            System.setProperty("com.sun.security.enableCRLDP", "true");
-// Для IBM JDK
-            System.setProperty("com.ibm.security.enableCRLDP", "true");
-// Включаем онлайн-проверку через OCSP
-            System.setProperty("ocsp.enable", "true");
-// Разрешаем автоматическую загрузку сертификатов УЦ
-            System.setProperty("com.sun.security.enableAIAcaIssuers", "true");
-            System.setProperty("ru.CryptoPro.reprov.enableAIAcaIssuers", "true");
+            // 3. CAdES default provider
+            try {
+                Class<?> cadesConfig = Class.forName("ru.CryptoPro.CAdES.CAdESConfig");
+                cadesConfig.getMethod("setDefaultProvider", String.class)
+                        .invoke(null, name);
+                log.info("CAdES default provider set to {}", name);
+            } catch (Throwable t) {
+                log.warn("CAdESConfig не настроен: {}", t.getMessage());
+            }
 
         } catch (Throwable t) {
-            log.warn("CryptoPro провайдеры не зарегистрированы. Причина: {}", t.getMessage(), t);
+            log.warn("CryptoPro провайдеры не зарегистрированы. " +
+                    "Проверка подписи не будет работать. Причина: {}", t.getMessage());
         }
     }
 }
