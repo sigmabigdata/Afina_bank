@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: afina-postgres-dev
+    environment:
+      POSTGRES_DB: afina_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: dev_password_change_me
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    # Загружаем pg_stat_statements в память при старте — иначе мониторинг не работает
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_stat_statements
+        -c pg_stat_statements.track=all
+        -c pg_stat_statements.max=10000
+        -c track_io_timing=on
+        -c log_min_duration_statement=1000
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d afina_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata_dev:
