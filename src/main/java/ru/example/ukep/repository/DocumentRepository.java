@@ -18,13 +18,18 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     @Query("select d from Document d join fetch d.owner order by d.uploadedAt desc")
     List<Document> findAllWithOwner();
 
+    /**
+     * Поиск документов для админки. Pattern (`%значение%`) приходит готовым из контроллера.
+     */
     @Query("select d from Document d join fetch d.owner " +
            "where (:signed is null or d.signed = :signed) " +
-           "and (:q is null or lower(d.originalName) like lower(concat('%', :q, '%')) " +
-           "     or lower(d.owner.email) like lower(concat('%', :q, '%')) " +
-           "     or lower(d.owner.fullName) like lower(concat('%', :q, '%'))) " +
+           "and (:q is null " +
+           "     or lower(d.originalName) like :q " +
+           "     or lower(d.owner.email) like :q " +
+           "     or lower(d.owner.fullName) like :q" +
+           ") " +
            "order by d.uploadedAt desc")
-    List<Document> searchForAdmin(@Param("signed") Boolean signed, @Param("q") String q);
+    List<Document> searchForAdmin(@Param("signed") Boolean signed, @Param("q") String pattern);
 
     long countBySignedTrue();
     long countBySignedFalse();

@@ -74,11 +74,12 @@ public class AdminController {
         if ("active".equalsIgnoreCase(status)) ef = true;
         else if ("pending".equalsIgnoreCase(status)) ef = false;
 
-        String qn = (q == null || q.isBlank()) ? null : q.trim();
+        String qNorm = (q == null || q.isBlank()) ? null : q.trim().toLowerCase();
+        String pattern = (qNorm == null) ? null : "%" + qNorm + "%";
 
-        model.addAttribute("users", userRepository.searchForAdmin(ef, null, qn));
+        model.addAttribute("users", userRepository.searchForAdmin(ef, null, pattern));
         model.addAttribute("status", status == null ? "" : status);
-        model.addAttribute("q", qn == null ? "" : qn);
+        model.addAttribute("q", qNorm == null ? "" : qNorm);
         return "admin-users";
     }
 
@@ -181,8 +182,13 @@ public class AdminController {
 
     @PostMapping("/users/{id}/toggle")
     public String toggleUser(@PathVariable Long id,
-                             @RequestParam(required = false) String back) {
-        userService.adminToggle(id);
+                             @RequestParam(required = false) String back,
+                             RedirectAttributes ra) {
+        try {
+            userService.adminToggle(id);
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("err", e.getMessage());
+        }
         return "card".equals(back)
                 ? "redirect:/admin/users/" + id
                 : "redirect:/admin/users";
@@ -232,10 +238,6 @@ public class AdminController {
                 .body(sig);
     }
 
-    /**
-     * Скачать ZIP со всеми подписями клиента.
-     * Имена внутри архива делаются уникальными: name.sig, name_1.sig, name_2.sig...
-     */
     @GetMapping("/users/{id}/signatures.zip")
     public ResponseEntity<byte[]> downloadAllSignatures(@PathVariable Long id) throws IOException {
         User user = userRepository.findById(id)
@@ -266,14 +268,12 @@ public class AdminController {
                 .body(baos.toByteArray());
     }
 
-    /** Имя файла без расширения. */
     private static String stripExtension(String name) {
         if (name == null) return "file";
         int dot = name.lastIndexOf('.');
         return dot > 0 ? name.substring(0, dot) : name;
     }
 
-    /** Делает имя уникальным: name.sig → name.sig, name_1.sig, name_2.sig. */
     private static String uniqueEntryName(String desired, Set<String> used) {
         if (used.add(desired)) return desired;
         int dot = desired.lastIndexOf('.');

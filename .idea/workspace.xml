@@ -5,41 +5,22 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="629cb8e2-fd82-42a7-b505-1af228fd1cca" name="Changes" comment="3 Реализована авторизация по сертификату">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/resources/db/migration/V1__init.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/admins.env" beforeDir="false" afterPath="$PROJECT_DIR$/admins.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run.sh" beforeDir="false" afterPath="$PROJECT_DIR$/run.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/UkepSignApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/UkepSignApplication.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/DataInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/DataInitializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/config/SecurityConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/AdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DocumentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/controller/DocumentController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/service/UserService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/DocumentRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/DocumentRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/UserRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ru/example/ukep/repository/UserRepository.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/application-dev.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application-dev.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/static/css/style.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-documents.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-login.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin-login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-user-card.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin-user-card.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-user-edit.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin-user-edit.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin-users.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin-users.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/admin.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/admin.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/login-sent.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/login-sent.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/templates/login.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/application-prod.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application-prod.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/target/classes/application-dev.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application-dev.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/UkepSignApplication.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/UkepSignApplication.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/DataInitializer.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/DataInitializer.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/application-prod.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application-prod.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/config/SecurityConfig.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AdminController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/AdminController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DocumentController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/controller/DocumentController.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/UserService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/service/UserService.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/static/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/static/css/style.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/admin-login.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/admin-login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/admin.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/admin.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/classes/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/templates/login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/DocumentRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/DocumentRepository.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/UserRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/ru/example/ukep/repository/UserRepository.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" beforeDir="false" afterPath="$PROJECT_DIR$/target/ukep-sign-service.jar.original" afterDir="false" />
     </list>
@@ -174,7 +155,15 @@
       <option name="project" value="LOCAL" />
       <updated>1790162982762</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="3 Реализована авторизация по сертификату">
+      <option name="closed" value="true" />
+      <created>1790232157908</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1790232157908</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

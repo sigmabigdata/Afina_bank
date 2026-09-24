@@ -105,6 +105,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionFixation().none())
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/", "/login", "/login/confirm", "/error",
+                                 "/ping",
                                  "/css/**", "/js/**", "/favicon.ico",
                                  "/h2-console/**").permitAll()
                 .anyRequest().authenticated())
