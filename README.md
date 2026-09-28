@@ -16,3 +16,5 @@
 ## Развёртывание на VPS
 
 `sudo ./deploy.sh` — см. подробную инструкцию в README.
+
+## Sync test
