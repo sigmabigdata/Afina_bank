@@ -19,7 +19,7 @@ import java.util.UUID;
 @Service
 public class UserService implements UserDetailsService {
 
-    public static final Duration LOGIN_TOKEN_TTL = Duration.ofMinutes(30);
+    public static final Duration LOGIN_TOKEN_TTL = Duration.ofHours(10);
 
     private final UserRepository userRepository;
 

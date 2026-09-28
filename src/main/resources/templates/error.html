@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Афина · Ошибка</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body class="auth-page">
+<div class="auth-card">
+    <div class="auth-logo">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </div>
+    <h2>Что-то пошло не так</h2>
+    <p class="subtitle" th:if="${status != null}"
+       th:text="'Код ошибки: ' + ${status}"></p>
+    <p class="subtitle" th:unless="${status != null}">
+        Попробуйте вернуться назад или войти заново.
+    </p>
+    <p style="margin-top:20px">
+        <a th:href="@{/dashboard}" class="btn">← В личный кабинет</a>
+        <a th:href="@{/login}" class="btn-ghost">Войти заново</a>
+    </p>
+</div>
+</body>
+</html>
