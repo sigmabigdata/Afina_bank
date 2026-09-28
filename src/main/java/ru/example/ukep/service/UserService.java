@@ -78,10 +78,21 @@ public class UserService implements UserDetailsService {
                     u.getEmail(), u.getLoginTokenExpires());
             return null;
         }
-        u.setLoginToken(null);
-        u.setLoginTokenExpires(null);
-        u.setLastLoginAt(Instant.now());
-        log.info("consumeLoginToken: success for {}", u.getEmail());
+
+        // Окно prefetch: если токен уже использован менее 10 минут назад — пропускаем
+        Instant usedAt = u.getLoginTokenUsedAt();
+        Instant now = Instant.now();
+        if (usedAt == null) {
+            u.setLoginTokenUsedAt(now);
+            log.info("consumeLoginToken: first use for {}", u.getEmail());
+        } else if (usedAt.isAfter(now.minus(Duration.ofMinutes(10)))) {
+            log.info("consumeLoginToken: reuse within 10 min window for {}", u.getEmail());
+        } else {
+            log.warn("consumeLoginToken: token already used long ago for {}", u.getEmail());
+            return null;
+        }
+
+        u.setLastLoginAt(now);
         return userRepository.save(u);
     }
 

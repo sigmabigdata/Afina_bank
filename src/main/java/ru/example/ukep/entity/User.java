@@ -29,6 +29,7 @@ public class User {
 
     private String loginToken;
     private Instant loginTokenExpires;
+    private Instant loginTokenUsedAt;
     private Instant lastLoginAt;
 
     @Column(nullable = false)
@@ -45,6 +46,7 @@ public class User {
     public boolean isEnabled() { return enabled; }
     public String getLoginToken() { return loginToken; }
     public Instant getLoginTokenExpires() { return loginTokenExpires; }
+    public Instant getLoginTokenUsedAt() { return loginTokenUsedAt; }
     public Instant getLastLoginAt() { return lastLoginAt; }
     public Instant getCreatedAt() { return createdAt; }
     public List<Document> getDocuments() { return documents; }
@@ -57,6 +59,7 @@ public class User {
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setLoginToken(String loginToken) { this.loginToken = loginToken; }
     public void setLoginTokenExpires(Instant loginTokenExpires) { this.loginTokenExpires = loginTokenExpires; }
+    public void setLoginTokenUsedAt(Instant loginTokenUsedAt) { this.loginTokenUsedAt = loginTokenUsedAt; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public void setDocuments(List<Document> documents) { this.documents = documents; }
