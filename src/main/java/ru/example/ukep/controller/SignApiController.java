@@ -1,6 +1,5 @@
 package ru.example.ukep.controller;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,9 +10,8 @@ import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
 import ru.example.ukep.service.DocumentService;
-import ru.example.ukep.service.SignatureService;
+import ru.example.ukep.service.SignatureVerifier;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 @RestController
@@ -21,19 +19,16 @@ import java.util.Map;
 public class SignApiController {
 
     private final DocumentService documentService;
-    private final SignatureService signatureService;
+    private final SignatureVerifier signatureVerifier;
     private final UserRepository userRepository;
     private final DocumentRepository documentRepository;
 
-    @Value("${app.crl-path:./kontur-q-2025.crl}")
-    private String crlPath;
-
     public SignApiController(DocumentService documentService,
-                             SignatureService signatureService,
+                             SignatureVerifier signatureVerifier,
                              UserRepository userRepository,
                              DocumentRepository documentRepository) {
         this.documentService = documentService;
-        this.signatureService = signatureService;
+        this.signatureVerifier = signatureVerifier;
         this.userRepository = userRepository;
         this.documentRepository = documentRepository;
     }
@@ -66,8 +61,8 @@ public class SignApiController {
 
     private ResponseEntity<?> doAccept(Document doc, User owner, String sig) {
         try {
-            Map<String, Object> result = signatureService.verifyDetached(
-                    documentService.getPath(doc), sig, Path.of(crlPath));
+            Map<String, Object> result = signatureVerifier.verifyDetached(
+                    documentService.getPath(doc), sig);
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));
             documentService.saveSignature(doc.getId(), owner, sig, subject, serial);

@@ -23,7 +23,7 @@
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <cryptopro.version>5.0.49800</cryptopro.version>
-        <bouncycastle.version>1.78.1</bouncycastle.version>
+        <bouncycastle.version>1.70</bouncycastle.version>
     </properties>
 
     <dependencies>
@@ -39,6 +39,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcutil-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -161,12 +166,12 @@
         <!-- ============ BouncyCastle ============ -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk18on</artifactId>
+            <artifactId>bcprov-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcpkix-jdk18on</artifactId>
+            <artifactId>bcpkix-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
         </dependency>
 

@@ -68,6 +68,51 @@ public class CryptoProInitializer {
                 cadesConfig.getMethod("setDefaultProvider", String.class)
                         .invoke(null, name);
                 log.info("CAdES default provider set to {}", name);
+
+                // Отключаем нативную проверку, чтобы использовался
+                // Java CertPathBuilder с нашим набором trusted-сертификатов.
+                // Пробуем все возможные системные свойства.
+                String[] props = {
+                    "ru.CryptoPro.CAdES.useNativeVerify",
+                    "ru.CryptoPro.CAdES.nativeVerify",
+                    "ru.CryptoPro.CAdES.useNative",
+                    "ru.CryptoPro.AdES.useNativeImpl",
+                    "ru.CryptoPro.AdES.nativeVerify",
+                    "ru.CryptoPro.AdES.useNative",
+                };
+                for (String p : props) System.setProperty(p, "false");
+                System.setProperty("ru.CryptoPro.AdES.useBuiltinImpl", "true");
+                System.setProperty("ru.CryptoPro.CAdES.disableNativeVerify", "true");
+
+                // Плюс reflection: ищем методы в *Config классах
+                String[] cfgClasses = {
+                    "ru.CryptoPro.CAdES.CAdESConfig",
+                    "ru.CryptoPro.AdES.AdESConfig",
+                    "ru.CryptoPro.AdES.config.AdESConfig",
+                };
+                String[] methods = {
+                    "setUseNativeVerify", "setNativeVerify",
+                    "setUseBuiltinVerify", "setBuiltinVerify",
+                    "setUseNativeImpl", "setNativeImpl",
+                };
+                boolean done = false;
+                for (String c : cfgClasses) {
+                    try {
+                        Class<?> cls = Class.forName(c);
+                        for (String m : methods) {
+                            try {
+                                cls.getMethod(m, boolean.class).invoke(null, false);
+                                log.info("{}#{}(false) — OK", c, m);
+                                done = true;
+                            } catch (Throwable ignored) {}
+                        }
+                    } catch (Throwable ignored) {}
+                }
+                if (!done) {
+                    log.warn("Reflection setUseNativeVerify: ни один метод не найден, "
+                           + "полагаемся на системные свойства");
+                }
+                log.info("CAdES native verify disabled (attempted)");
             } catch (Throwable t) {
                 log.warn("CAdESConfig не настроен: {}", t.getMessage());
             }

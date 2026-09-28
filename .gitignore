@@ -1,29 +1,33 @@
-# Secrets
-.env
-.env.prod
-admins.env
-
-# Runtime
+# Build
 target/
-data/
-logs/
-backups/
-pgdata/
-storage/documents/*
-!storage/documents/.gitkeep
-
-# Docker
-caddy_data/
-caddy_config/
-
-# CryptoPro dist (большой файл)
-cryptopro-dist/
+*.jar.original
 
 # IDE
 .idea/
 *.iml
 .vscode/
-
-# OS
 .DS_Store
-._*
+
+# Логи и данные
+logs/
+backups/
+storage/
+*.log
+
+# Секреты и локальные конфиги
+.env
+.env.prod
+.env.prod.local
+admins.env
+*.bak
+*.bak[0-9]*
+*.prody
+
+# Сертификаты и дистрибутивы
+certs/
+libs/*.jar
+cryptopro-dist/
+*.crl
+
+# Кэш
+.mvn/

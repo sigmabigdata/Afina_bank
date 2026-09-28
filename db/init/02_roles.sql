@@ -9,21 +9,21 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'afina_migrator') THEN
-    CREATE ROLE afina_migrator LOGIN PASSWORD 'migrator_password_change_me';
+    CREATE ROLE afina_migrator LOGIN PASSWORD 'aAnatolikanibal12!';
   END IF;
 END $$;
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'afina_app') THEN
-    CREATE ROLE afina_app LOGIN PASSWORD 'app_password_change_me';
+    CREATE ROLE afina_app LOGIN PASSWORD 'aAnatolikanibal12!';
   END IF;
 END $$;
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'afina_auditor') THEN
-    CREATE ROLE afina_auditor LOGIN PASSWORD 'auditor_password_change_me';
+    CREATE ROLE afina_auditor LOGIN PASSWORD 'aAnatolikanibal12!';
   END IF;
 END $$;
 

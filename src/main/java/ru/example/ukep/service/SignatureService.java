@@ -7,15 +7,21 @@ import ru.CryptoPro.CAdES.CAdESType;
 
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,7 +62,9 @@ public class SignatureService {
 
         CAdESSignature cades = new CAdESSignature(signatureBytes, data, CAdESType.CAdES_BES);
         Set<X509CRL> crls = loadCrl(crlPath);
-        cades.verify(null, crls);
+        Set<X509Certificate> trusted = loadTrustedCerts();
+
+        cades.verify(trusted, crls);
 
         CAdESSigner[] signers = cades.getCAdESSignerInfos();
         Map<String, Object> result = new HashMap<>();
@@ -83,8 +91,55 @@ public class SignatureService {
         result.put("signerSubject", firstCn);
         result.put("signerSerial", firstSerial);
 
-        // Запоминаем CN в thread-local, чтобы контроллер мог его прочитать
         lastCn.set(firstCn);
+        return result;
+    }
+
+    /**
+     * Загружает доверенные сертификаты из:
+     *  1. /app/certs/*.cer, *.crt (корни УЦ, промежуточные)
+     *  2. $JAVA_HOME/lib/security/cacerts (стандартный Java truststore)
+     */
+    private Set<X509Certificate> loadTrustedCerts() {
+        Set<X509Certificate> result = new HashSet<>();
+        CertificateFactory cf;
+        try {
+            cf = CertificateFactory.getInstance("X.509");
+        } catch (Exception e) {
+            return result;
+        }
+
+        // 1. /app/certs
+        File certsDir = new File("/app/certs");
+        if (certsDir.isDirectory()) {
+            File[] files = certsDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (!f.isFile()) continue;
+                    try (InputStream is = new FileInputStream(f)) {
+                        Certificate c = cf.generateCertificate(is);
+                        if (c instanceof X509Certificate) {
+                            result.add((X509Certificate) c);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        // 2. Java cacerts
+        try (InputStream is = new FileInputStream(
+                System.getProperty("java.home") + "/lib/security/cacerts")) {
+            KeyStore ks = KeyStore.getInstance("JKS");
+            ks.load(is, "changeit".toCharArray());
+            Enumeration<String> aliases = ks.aliases();
+            while (aliases.hasMoreElements()) {
+                String a = aliases.nextElement();
+                Certificate c = ks.getCertificate(a);
+                if (c instanceof X509Certificate) {
+                    result.add((X509Certificate) c);
+                }
+            }
+        } catch (Exception ignored) {}
 
         return result;
     }

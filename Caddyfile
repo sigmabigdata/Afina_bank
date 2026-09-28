@@ -1,47 +1,8 @@
-# ============================================================
-# Афина · Caddy reverse-proxy с автоматическим HTTPS
-# ============================================================
-# Замени afina.example.ru на свой домен!
-# ============================================================
-
-{$APP_DOMAIN} {
-    log {
-        output file /data/caddy.log
-        format json
-    }
-
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        -Server
-        -X-Powered-By
-        Content-Security-Policy "default-src 'self'; script-src 'self' https://www.cryptopro.ru 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
-    }
-
-    reverse_proxy app:8080 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        transport http {
-            read_timeout 60s
-            write_timeout 60s
-        }
-    }
-
-    request_body {
-        max_size 50MB
-    }
-
-    @actuator path /actuator/*
-    handle @actuator {
-        @not_local not remote_ip 127.0.0.1 ::1
-        respond @not_local "Forbidden" 403
-        reverse_proxy app:8080
-    }
+afinasystems.ru {
+    encode gzip
+    reverse_proxy app:8080
 }
 
-:80 {
-    redir https://{host}{uri} permanent
+www.afinasystems.ru {
+    redir https://afinasystems.ru{uri} permanent
 }

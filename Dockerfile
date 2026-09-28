@@ -8,6 +8,8 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
+ENV MAVEN_OPTS="-Xmx512m -Xms128m"
+
 COPY pom.xml ./
 COPY libs ./libs
 
@@ -21,12 +23,12 @@ RUN cd libs && \
         mvn -B -q install:install-file -Dfile="$f.jar" \
             -DgroupId=$G -DartifactId=$a -Dversion=$VERSION -Dpackaging=jar; \
     done && \
-    mvn -B -q install:install-file -Dfile=bcprov-jdk18on-1.78.1.jar \
-        -DgroupId=org.bouncycastle -DartifactId=bcprov-jdk18on -Dversion=1.78.1 -Dpackaging=jar && \
-    mvn -B -q install:install-file -Dfile=bcpkix-jdk18on-1.78.1.jar \
-        -DgroupId=org.bouncycastle -DartifactId=bcpkix-jdk18on -Dversion=1.78.1 -Dpackaging=jar && \
-    mvn -B -q install:install-file -Dfile=bcutil-jdk18on-1.78.1.jar \
-        -DgroupId=org.bouncycastle -DartifactId=bcutil-jdk18on -Dversion=1.78.1 -Dpackaging=jar
+    mvn -B -q install:install-file -Dfile=bcprov-jdk15on-1.70.jar \
+        -DgroupId=org.bouncycastle -DartifactId=bcprov-jdk15on -Dversion=1.70 -Dpackaging=jar && \
+    mvn -B -q install:install-file -Dfile=bcpkix-jdk15on-1.70.jar \
+        -DgroupId=org.bouncycastle -DartifactId=bcpkix-jdk15on -Dversion=1.70 -Dpackaging=jar && \
+    mvn -B -q install:install-file -Dfile=bcutil-jdk15on-1.70.jar \
+        -DgroupId=org.bouncycastle -DartifactId=bcutil-jdk15on -Dversion=1.70 -Dpackaging=jar
 
 COPY src ./src
 RUN mvn -B clean package -DskipTests
@@ -43,14 +45,28 @@ RUN apt-get update -o Acquire::Retries=5 && \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Установка КриптоПро CSP для Linux ----
+
+# ---- Установка КриптоПро CSP для Linux ----
+# ---- Установка КриптоПро CSP для Linux ----
+# Устанавливаем ТОЛЬКО серверные пакеты. GUI (cptools-gtk, rdr-gui-gtk) и
+# драйверы токенов (ifd-rutokens, rdr-*) не нужны для проверки подписи.
+# ВАЖНО: lsb-cprocsp-rdr-64 нужен всем остальным пакетам — ставим его явно.
+# ---- Установка КриптоПро CSP для Linux ----
+# Устанавливаем ТОЛЬКО серверные пакеты.
+# lsb-cprocsp-rdr-64 нужен всем остальным — ставим явно.
 COPY cryptopro-dist/linux-amd64_deb.tgz /tmp/cryptopro/
 RUN cd /tmp/cryptopro && \
     tar xzf linux-amd64_deb.tgz && \
     cd linux-amd64_deb && \
-    dpkg -i lsb-cprocsp-base_*.deb && \
-    dpkg -i cprocsp-compat-debian_*.deb || true && \
-    apt-get install -y ./*.deb && \
-    /opt/cprocsp/bin/amd64/cpverify -version && \
+    apt-get install -y --no-install-recommends \
+        ./lsb-cprocsp-base_*.deb \
+        ./cprocsp-compat-debian_*.deb \
+        ./lsb-cprocsp-rdr-64_*.deb \
+        ./lsb-cprocsp-kc1-64_*.deb \
+        ./lsb-cprocsp-capilite-64_*.deb \
+        ./cprocsp-curl-64_*.deb \
+        ./cprocsp-pki-cades-64_*.deb && \
+    ls -la /opt/cprocsp/bin/amd64/ && \
     rm -rf /tmp/cryptopro
 
 ENV PATH="${PATH}:/opt/cprocsp/bin/amd64:/opt/cprocsp/sbin/amd64"
