@@ -19,6 +19,8 @@ import java.util.UUID;
 @Service
 public class UserService implements UserDetailsService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UserService.class);
+
     public static final Duration LOGIN_TOKEN_TTL = Duration.ofHours(10);
 
     private final UserRepository userRepository;
@@ -61,16 +63,25 @@ public class UserService implements UserDetailsService {
 
     @Transactional
     public User consumeLoginToken(String token) {
-        if (token == null || token.isBlank()) return null;
+        if (token == null || token.isBlank()) {
+            log.warn("consumeLoginToken: token is null/blank");
+            return null;
+        }
         Optional<User> opt = userRepository.findByLoginToken(token);
-        if (opt.isEmpty()) return null;
+        if (opt.isEmpty()) {
+            log.warn("consumeLoginToken: no user with token (len={})", token.length());
+            return null;
+        }
         User u = opt.get();
         if (u.getLoginTokenExpires() == null || u.getLoginTokenExpires().isBefore(Instant.now())) {
+            log.warn("consumeLoginToken: token expired for {} (expires={})",
+                    u.getEmail(), u.getLoginTokenExpires());
             return null;
         }
         u.setLoginToken(null);
         u.setLoginTokenExpires(null);
         u.setLastLoginAt(Instant.now());
+        log.info("consumeLoginToken: success for {}", u.getEmail());
         return userRepository.save(u);
     }
 

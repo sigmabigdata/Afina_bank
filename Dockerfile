@@ -81,6 +81,10 @@ RUN groupadd -r afina && useradd -r -g afina afina && \
 
 COPY --from=build /app/target/ukep-sign-service.jar app.jar
 
+# Отключаем шум java.util.prefs (CryptoPro использует prefs для license)
+ENV JAVA_TOOL_OPTIONS="-Djava.util.prefs.userRoot=/tmp/.java -Djava.util.prefs.systemRoot=/tmp/.java-system"
+
+
 VOLUME ["/app/storage", "/var/log/afina"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \

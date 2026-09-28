@@ -72,11 +72,14 @@ public class AuthController {
                                HttpServletRequest request,
                                HttpServletResponse response,
                                Model model) {
+        log.info("confirmLogin: token received len={}", token == null ? 0 : token.length());
         User user = userService.consumeLoginToken(token);
         if (user == null) {
+            log.warn("confirmLogin: token invalid/expired");
             model.addAttribute("error", "Ссылка недействительна или истекла");
             return "login";
         }
+        log.info("confirmLogin: user {} logged in", user.getEmail());
 
         var details = org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
