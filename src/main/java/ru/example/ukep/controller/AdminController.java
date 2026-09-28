@@ -5,6 +5,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.example.ukep.entity.Document;
 import ru.example.ukep.entity.Role;
@@ -286,5 +287,38 @@ public class AdminController {
             i++;
         } while (!used.add(candidate));
         return candidate;
+    }
+
+    // ==================== ДОКУМЕНТЫ (загрузка/удаление админом) ====================
+
+    /** Загрузить документ в карточку клиента. */
+    @PostMapping("/users/{userId}/documents/upload")
+    public String uploadForUser(@PathVariable Long userId,
+                                @RequestParam("file") MultipartFile file,
+                                RedirectAttributes ra) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+        try {
+            Document doc = documentService.upload(file, user);
+            ra.addFlashAttribute("ok", "Документ загружен: " + doc.getOriginalName());
+        } catch (Exception e) {
+            ra.addFlashAttribute("err", "Не удалось загрузить: " + e.getMessage());
+        }
+        return "redirect:/admin/users/" + userId;
+    }
+
+    /** Удалить документ клиента. */
+    @PostMapping("/documents/{id}/delete")
+    public String deleteDocument(@PathVariable Long id, RedirectAttributes ra) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+        Long ownerId = doc.getOwner().getId();
+        try {
+            documentService.deleteAsAdmin(id);
+            ra.addFlashAttribute("ok", "Документ удалён");
+        } catch (Exception e) {
+            ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());
+        }
+        return "redirect:/admin/users/" + ownerId;
     }
 }

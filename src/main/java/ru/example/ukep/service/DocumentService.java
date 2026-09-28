@@ -41,6 +41,20 @@ public class DocumentService {
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
     }
 
+    /** Для админа: получить документ по id без проверки владельца. */
+    public Document getById(Long id) {
+        return documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+    }
+
+    /** Для админа: удалить документ без проверки владельца. */
+    @Transactional
+    public void deleteAsAdmin(Long id) throws IOException {
+        Document doc = getById(id);
+        Files.deleteIfExists(storageRoot.resolve(doc.getStoredName()));
+        documentRepository.delete(doc);
+    }
+
     @Transactional
     public Document upload(MultipartFile file, User owner) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("Файл пустой");

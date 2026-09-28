@@ -121,7 +121,19 @@
         </div>
     </div>
 
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
     <h2>Документы клиента</h2>
+
+    <form method="post"
+          th:action="@{'/admin/users/' + ${user.id} + '/documents/upload'}"
+          enctype="multipart/form-data"
+          class="upload-form">
+        <input type="file" name="file" required/>
+        <button type="submit">Загрузить за клиента</button>
+    </form>
+
     <table class="docs">
         <thead><tr>
             <th>ID</th><th>Документ</th><th>Размер</th><th>Загружен</th>
@@ -155,6 +167,13 @@
                 <a th:if="${d.signed}"
                    th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
                    title="Скачать подпись">📎</a>
+
+                <form method="post"
+                      th:action="@{'/admin/documents/' + ${d.id} + '/delete'}"
+                      onsubmit="return confirm('Удалить документ? Действие необратимо.');"
+                      style="display:inline">
+                    <button type="submit" class="link danger" title="Удалить">🗑</button>
+                </form>
             </td>
         </tr>
         <tr th:if="${#lists.isEmpty(documents)}">
