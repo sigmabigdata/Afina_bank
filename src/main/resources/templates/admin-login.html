@@ -16,6 +16,8 @@
     <p class="subtitle">Доступно только с сервера и только по сертификату УКЭП</p>
 
     <div th:if="${param.logout}" class="alert ok">Вы вышли из системы</div>
+    <div th:if="${param.expired}" class="alert err">Сессия истекла. Войдите заново.</div>
+    <div th:if="${param.forbidden}" class="alert err">Недостаточно прав для доступа.</div>
     <div id="error-box" class="alert err" style="display:none"></div>
 
     <button id="btn-cert-login" type="button">

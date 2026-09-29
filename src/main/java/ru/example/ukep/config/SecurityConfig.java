@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
@@ -66,6 +67,14 @@ public class SecurityConfig {
         };
     }
 
+    /** AJAX/JSON-запрос? Тогда при отсутствии сессии возвращаем 401, а не редирект. */
+    private static boolean isAjax(HttpServletRequest req) {
+        String xhr = req.getHeader("X-Requested-With");
+        String accept = req.getHeader("Accept");
+        return "XMLHttpRequest".equalsIgnoreCase(xhr)
+                || (accept != null && accept.contains("application/json"));
+    }
+
     @Bean
     @Order(1)
     public SecurityFilterChain adminChain(
@@ -88,7 +97,26 @@ public class SecurityConfig {
             .formLogin(f -> f.disable())
             .httpBasic(b -> b.disable())
             .logout(l -> l.disable())
-            .csrf(c -> c.disable());
+            .csrf(c -> c.disable())
+            .exceptionHandling(e -> e
+                // Не залогинен — редирект на /admin/login (для AJAX — 401)
+                .authenticationEntryPoint((req, res, ex) -> {
+                    if (isAjax(req)) {
+                        res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        res.setContentType("application/json;charset=UTF-8");
+                        res.getWriter().write("{\"error\":\"unauthorized\"}");
+                    } else {
+                        res.sendRedirect("/admin/login?expired");
+                    }
+                })
+                // Залогинен, но не админ — 403
+                .accessDeniedHandler((req, res, ex) -> {
+                    res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    if (!isAjax(req)) {
+                        res.sendRedirect("/admin/login?forbidden");
+                    }
+                })
+            );
         return http.build();
     }
 
@@ -113,7 +141,19 @@ public class SecurityConfig {
             .formLogin(f -> f.disable())
             .httpBasic(b -> b.disable())
             .logout(l -> l.disable())
-            .headers(h -> h.frameOptions(f -> f.sameOrigin()));
+            .headers(h -> h.frameOptions(f -> f.sameOrigin()))
+            .exceptionHandling(e -> e
+                // Не залогинен — редирект на /login (для AJAX — 401)
+                .authenticationEntryPoint((req, res, ex) -> {
+                    if (isAjax(req)) {
+                        res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        res.setContentType("application/json;charset=UTF-8");
+                        res.getWriter().write("{\"error\":\"unauthorized\"}");
+                    } else {
+                        res.sendRedirect("/login?expired");
+                    }
+                })
+            );
         return http.build();
     }
 }

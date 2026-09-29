@@ -17,6 +17,7 @@
 
     <div th:if="${error}" class="alert err" th:text="${error}"></div>
     <div th:if="${param.logout}" class="alert ok">Вы вышли из системы</div>
+    <div th:if="${param.expired}" class="alert err">Сессия истекла. Войдите заново.</div>
     <div th:if="${param.invalid}" class="alert err">Ссылка недействительна или истекла. Запросите новую.</div>
 
     <form method="post" th:action="@{/login}">
