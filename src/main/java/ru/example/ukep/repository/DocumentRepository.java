@@ -1,5 +1,6 @@
 package ru.example.ukep.repository;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,11 +12,13 @@ import java.util.Optional;
 
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
+    @EntityGraph(attributePaths = "signatures")
     List<Document> findAllByOwnerOrderByUploadedAtDesc(User owner);
 
     Optional<Document> findByIdAndOwner(Long id, User owner);
 
     @Query("select d from Document d join fetch d.owner order by d.uploadedAt desc")
+    @EntityGraph(attributePaths = "signatures")
     List<Document> findAllWithOwner();
 
     /**
