@@ -56,6 +56,7 @@ public class UserService implements UserDetailsService {
         String token = UUID.randomUUID().toString().replace("-", "");
         u.setLoginToken(token);
         u.setLoginTokenExpires(Instant.now().plus(LOGIN_TOKEN_TTL));
+        u.setLoginTokenUsedAt(null);
         userRepository.save(u);
 
         return baseUrl + "/login/confirm?token=" + token;
@@ -79,20 +80,14 @@ public class UserService implements UserDetailsService {
             return null;
         }
 
-        // Окно prefetch: если токен уже использован менее 10 минут назад — пропускаем
-        Instant usedAt = u.getLoginTokenUsedAt();
+        // Токен действителен до истечения TTL (10 часов).
+        // Многоразовый — чтобы Gmail-prefetch не «съедал» единственный клик.
         Instant now = Instant.now();
-        if (usedAt == null) {
+        if (u.getLoginTokenUsedAt() == null) {
             u.setLoginTokenUsedAt(now);
-            log.info("consumeLoginToken: first use for {}", u.getEmail());
-        } else if (usedAt.isAfter(now.minus(Duration.ofMinutes(10)))) {
-            log.info("consumeLoginToken: reuse within 10 min window for {}", u.getEmail());
-        } else {
-            log.warn("consumeLoginToken: token already used long ago for {}", u.getEmail());
-            return null;
         }
-
         u.setLastLoginAt(now);
+        log.info("consumeLoginToken: success for {} (usedAt={})", u.getEmail(), u.getLoginTokenUsedAt());
         return userRepository.save(u);
     }
 
