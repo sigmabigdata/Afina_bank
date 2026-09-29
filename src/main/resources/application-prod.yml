@@ -92,6 +92,8 @@ spring.lifecycle:
   timeout-per-shutdown-phase: 30s
 
 app:
+  backups-path: /app/backups
+  logs-path: /app/logs
   storage-path: ${APP_STORAGE_PATH}
   base-url: ${APP_BASE_URL}
   admin-ip-whitelist: ${ADMIN_IP_WHITELIST}
@@ -145,8 +147,3 @@ management:
       enabled: true
     mail:
       enabled: false   # SMTP может быть временно недоступен, это не критично
-
-# Пути для админ-панели "Система" (монтируются в контейнер)
-app:
-  backups-path: /app/backups
-  logs-path: /app/logs
