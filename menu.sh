@@ -57,22 +57,60 @@ check_project() {
 
 # Проверка, что Docker запущен
 check_docker() {
-    if ! docker info > /dev/null 2>&1; then
-        echo -e "${RED}❌ Docker Desktop не запущен${NC}"
-        echo -e "${YELLOW}   Открой Программы → Docker Desktop и подожди 30 секунд${NC}"
-        return 1
+    if docker info > /dev/null 2>&1; then
+        return 0
     fi
-    return 0
+
+    echo -e "${YELLOW}▶ Docker Desktop не запущен, пытаюсь открыть...${NC}"
+
+    # macOS: открыть Docker Desktop
+    if command -v open >/dev/null 2>&1; then
+        open -a Docker 2>/dev/null || open -a "Docker Desktop" 2>/dev/null || true
+    # Linux: systemd
+    elif command -v systemctl >/dev/null 2>&1; then
+        sudo systemctl start docker 2>/dev/null || true
+    fi
+
+    # Ждём до 60 секунд
+    for i in $(seq 1 30); do
+        sleep 2
+        if docker info > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Docker готов (${i}x2 сек)${NC}"
+            return 0
+        fi
+    done
+
+    echo -e "${RED}❌ Docker Desktop не запустился за 60 секунд${NC}"
+    echo -e "${YELLOW}   Открой вручную: Программы → Docker Desktop${NC}"
+    return 1
 }
 
 # Проверка, что контейнер БД работает
 check_db() {
-    if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${CONTAINER}$"; then
-        echo -e "${RED}❌ Контейнер ${CONTAINER} не запущен${NC}"
-        echo -e "${YELLOW}   Запусти БД (пункт 3.1)${NC}"
-        return 1
+    # Уже работает?
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${CONTAINER}$"; then
+        return 0
     fi
-    return 0
+
+    # Поднять Docker если нужно
+    check_docker || return 1
+
+    echo -e "${YELLOW}▶ Контейнер ${CONTAINER} не запущен, поднимаю...${NC}"
+    docker compose -f docker-compose-dev.yml up -d >/dev/null 2>&1
+
+    # Ждём до 30 секунд, пока Postgres ответит pg_isready
+    for i in $(seq 1 15); do
+        sleep 2
+        if docker exec "$CONTAINER" pg_isready -U app_user -d "$DB" > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ PostgreSQL готов (${i}x2 сек)${NC}"
+            return 0
+        fi
+    done
+
+    echo -e "${RED}❌ Контейнер не поднялся за 30 секунд${NC}"
+    echo -e "${YELLOW}   Последние строки лога:${NC}"
+    docker compose -f docker-compose-dev.yml logs --tail=15
+    return 1
 }
 
 # Проверка, что приложение работает
@@ -123,6 +161,7 @@ menu_app() {
         echo -e "  ${GREEN}5.${NC} Показать последние 50 строк лога"
         echo -e "  ${GREEN}6.${NC} Полная пересборка + запуск"
         echo -e "  ${GREEN}7.${NC} Открыть в браузере (страница входа)"
+        echo -e "  ${GREEN}8.${NC} ${BOLD}⚡ Запустить всё одной кнопкой${NC} (Docker + БД + приложение)"
         echo ""
         echo -e "  ${YELLOW}0.${NC} ← Назад"
         echo ""
@@ -173,6 +212,21 @@ menu_app() {
                     echo -e "${YELLOW}Открой вручную: ${APP_URL}/login${NC}"
                 fi
                 pause
+                ;;
+            8)
+                echo -e "${BOLD}⚡ Полный запуск: Docker → БД → приложение${NC}"
+                echo ""
+                # 1. Docker
+                if ! check_docker; then
+                    pause; continue
+                fi
+                # 2. БД
+                if ! check_db; then
+                    pause; continue
+                fi
+                # 3. Приложение
+                ./stop.sh 2>/dev/null || true
+                ./run.sh
                 ;;
             0) return ;;
             *) echo -e "${RED}Неверный выбор${NC}"; sleep 1 ;;
