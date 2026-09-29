@@ -20,9 +20,37 @@ BOLD='\033[1m'
 NC='\033[0m'  # No Color
 
 # ---- Константы ----
-CONTAINER="afina-postgres-dev"
-DB="afina_db"
-APP_URL="http://localhost:8080"
+# ---- Автоопределение окружения ----
+# Если запущено из /opt/afina с .env.prod — это сервер (prod).
+# Иначе — локальная разработка (dev).
+if [ -f /opt/afina/.env.prod ] && [ "$(pwd)" = "/opt/afina" ]; then
+    MODE="prod"
+    CONTAINER="afina-postgres"
+    COMPOSE_FILE="docker-compose-prod.yml"
+    ENV_FILE=".env.prod"
+    DB="afina_db"
+    # Для чтения используем суперпользователя (он всегда есть)
+    DB_USER="postgres"
+    APP_URL="http://localhost:8080"
+else
+    MODE="dev"
+    CONTAINER="afina-postgres-dev"
+    COMPOSE_FILE="docker-compose-dev.yml"
+    ENV_FILE=".env"
+    DB="afina_db"
+    DB_USER="app_user"
+    APP_URL="http://localhost:8080"
+fi
+
+# Универсальный psql
+psql_exec() {
+    docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB" "$@"
+}
+
+# Универсальный compose
+dc() {
+    docker compose -f "$COMPOSE_FILE" "$@"
+}
 
 # ---- Хелперы ----
 clear_screen() {
@@ -38,6 +66,11 @@ clear_screen() {
 BANNER
     echo -e "${NC}${GRAY}  Сервис подписания документов УКЭП${NC}"
     echo -e "${GRAY}  ─────────────────────────────────────${NC}"
+    if [ "$MODE" = "prod" ]; then
+        echo -e "${GREEN}  Режим: PROD (контейнер ${CONTAINER})${NC}"
+    else
+        echo -e "${BLUE}  Режим: DEV (контейнер ${CONTAINER})${NC}"
+    fi
     echo ""
 }
 
@@ -96,7 +129,7 @@ check_db() {
     check_docker || return 1
 
     echo -e "${YELLOW}▶ Контейнер ${CONTAINER} не запущен, поднимаю...${NC}"
-    docker compose -f docker-compose-dev.yml up -d >/dev/null 2>&1
+    dc up -d >/dev/null 2>&1
 
     # Ждём до 30 секунд, пока Postgres ответит pg_isready
     for i in $(seq 1 15); do
@@ -109,7 +142,7 @@ check_db() {
 
     echo -e "${RED}❌ Контейнер не поднялся за 30 секунд${NC}"
     echo -e "${YELLOW}   Последние строки лога:${NC}"
-    docker compose -f docker-compose-dev.yml logs --tail=15
+    dc logs --tail=15
     return 1
 }
 
@@ -269,20 +302,20 @@ menu_db() {
         case $choice in
             1)
                 check_docker || { pause; continue; }
-                echo -e "${BLUE}▶ Запускаю PostgreSQL...${NC}"
-                docker compose -f docker-compose-dev.yml up -d
+                echo -e "${BLUE}▶ Запускаю PostgreSQL ($COMPOSE_FILE)...${NC}"
+                dc up -d
                 sleep 5
-                docker compose -f docker-compose-dev.yml ps
+                dc ps
                 pause
                 ;;
             2)
                 echo -e "${BLUE}▶ Останавливаю PostgreSQL...${NC}"
-                docker compose -f docker-compose-dev.yml down
+                dc down
                 pause
                 ;;
             3)
                 check_docker || { pause; continue; }
-                docker compose -f docker-compose-dev.yml ps
+                dc ps
                 pause
                 ;;
             4)
@@ -303,7 +336,7 @@ menu_db() {
                 ;;
             7)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT
                         relname AS table_name,
                         pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
@@ -314,7 +347,7 @@ menu_db() {
                 ;;
             8)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT version, description, success, installed_on
                     FROM flyway_schema_history
                     ORDER BY installed_rank;"
@@ -322,14 +355,14 @@ menu_db() {
                 ;;
             9)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT id, email, full_name, role, enabled, last_login_at
                     FROM users ORDER BY id;"
                 pause
                 ;;
             10)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT id, original_name, size, signed, signer_subject, owner_id
                     FROM documents ORDER BY id;"
                 pause
@@ -344,11 +377,17 @@ menu_db() {
                 echo -ne "${BOLD}   Введи ${RED}YES${NC}${BOLD} для подтверждения: ${NC}"
                 read -r confirm
                 if [ "$confirm" = "YES" ]; then
-                    ./stop.sh
-                    docker compose -f docker-compose-dev.yml down -v
-                    docker compose -f docker-compose-dev.yml up -d
+                    if [ "$MODE" = "dev" ]; then
+                        ./stop.sh 2>/dev/null || true
+                    fi
+                    dc down -v
+                    dc up -d
                     sleep 10
-                    ./setup-db.sh
+                    if [ "$MODE" = "dev" ]; then
+                        ./setup-db.sh
+                    else
+                        echo -e "${YELLOW}▶ Prod: init-скрипты БД выполнятся автоматически при первом старте${NC}"
+                    fi
                     echo -e "${GREEN}✅ БД сброшена${NC}"
                 else
                     echo -e "${YELLOW}Отменено${NC}"
@@ -571,13 +610,13 @@ menu_check() {
                     ./dbcheck.sh
                 else
                     echo -e "${YELLOW}dbcheck.sh не найден, показываю базовые проверки${NC}"
-                    docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "\dt"
+                    docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "\dt"
                 fi
                 pause
                 ;;
             2)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT
                         (SELECT COUNT(*) FROM users) AS users,
                         (SELECT COUNT(*) FROM documents) AS documents,
@@ -587,7 +626,7 @@ menu_check() {
                 ;;
             3)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT grantee, table_name, privilege_type
                     FROM information_schema.table_privileges
                     WHERE grantee IN ('afina_app', 'afina_auditor')
@@ -597,12 +636,12 @@ menu_check() {
                 ;;
             4)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "\dx"
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "\dx"
                 pause
                 ;;
             5)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT DISTINCT usename, application_name
                     FROM pg_stat_activity
                     WHERE datname = '${DB}'
@@ -611,7 +650,7 @@ menu_check() {
                 ;;
             6)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT
                         LEFT(query, 60) AS query,
                         calls,
@@ -624,7 +663,7 @@ menu_check() {
                 ;;
             7)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT usename, state, count(*)
                     FROM pg_stat_activity
                     WHERE datname = '${DB}'
@@ -715,7 +754,7 @@ menu_users() {
                 ;;
             4)
                 check_db || { pause; continue; }
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     SELECT id, email, full_name, role, enabled
                     FROM users
                     ORDER BY role, id;"
@@ -729,7 +768,7 @@ menu_users() {
                 read -r fullname
                 echo -ne "  Телефон: "
                 read -r phone
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     INSERT INTO users (email, full_name, phone, role, enabled)
                     VALUES ('${email}', '${fullname}', '${phone}', 'ROLE_USER', true);"
                 echo -e "${GREEN}✅ Клиент создан${NC}"
@@ -739,7 +778,7 @@ menu_users() {
                 check_db || { pause; continue; }
                 echo -ne "  Email клиента: "
                 read -r email
-                docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                     UPDATE users SET enabled = TRUE WHERE email = '${email}';"
                 echo -e "${GREEN}✅ Готово${NC}"
                 pause
@@ -751,7 +790,7 @@ menu_users() {
                 echo -ne "  ${RED}Удалить пользователя и все его документы? (YES): ${NC}"
                 read -r confirm
                 if [ "$confirm" = "YES" ]; then
-                    docker exec "${CONTAINER}" psql -U app_user -d "${DB}" -c "
+                    docker exec "${CONTAINER}" psql -U "${DB_USER}" -d "${DB}" -c "
                         DELETE FROM users WHERE email = '${email}';"
                     echo -e "${GREEN}✅ Удалено${NC}"
                 else
