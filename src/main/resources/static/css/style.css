@@ -656,3 +656,32 @@ table.docs tr:hover td { background: #fafbff; }
     font-weight: 600;
     box-shadow: 0 2px 8px rgba(36,84,255,.25);
 }
+
+
+/* --- Список подписей под документом --- */
+.sig-item {
+    padding: 8px 12px;
+    margin: 6px 0;
+    border-left: 3px solid #16a34a;
+    background: rgba(22, 163, 74, 0.05);
+    border-radius: 4px;
+}
+.sig-item .sig-subject {
+    font-weight: 500;
+}
+.sig-item .sig-meta {
+    color: #6b7280;
+    font-size: 0.85em;
+    margin-top: 2px;
+}
+.sig-item .sig-actions {
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.sig-item.small {
+    padding: 6px 8px;
+    margin: 4px 0;
+    font-size: 0.85em;
+}

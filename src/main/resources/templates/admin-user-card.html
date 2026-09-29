@@ -150,12 +150,27 @@
                 <span th:unless="${d.signed}" class="badge warn">Не подписан</span>
             </td>
             <td>
-                <div th:if="${d.signed}">
-                    <div class="muted small"
-                         th:text="${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</div>
-                    <div class="small" th:text="${d.signerSubject}">ФИО</div>
+                <div th:if="${not #lists.isEmpty(d.signatures)}">
+                    <div th:each="sig, st : ${d.signatures}" class="sig-item small">
+                        <div>
+                            <b th:text="${st.index + 1} + '. '">1. </b>
+                            <span th:text="${sig.signerSubject}">ФИО</span>
+                        </div>
+                        <div class="muted small"
+                             th:text="${#temporals.format(sig.signedAt,'dd.MM.yyyy HH:mm')}">—</div>
+                        <div style="margin-top:4px">
+                            <a th:href="@{'/admin/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/download'}"
+                               class="btn-sig btn-sm" title="Скачать подпись">⬇ .sig</a>
+                            <form method="post"
+                                  th:action="@{'/admin/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/delete'}"
+                                  onsubmit="return confirm('Удалить подпись?');"
+                                  style="display:inline">
+                                <button type="submit" class="link danger" title="Удалить">🗑</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-                <span th:unless="${d.signed}" class="muted small">—</span>
+                <span th:if="${#lists.isEmpty(d.signatures)}" class="muted small">—</span>
             </td>
             <td class="actions">
                 <a th:href="@{'/admin/documents/' + ${d.id} + '/view'}"

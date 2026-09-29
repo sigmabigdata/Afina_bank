@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import ru.example.ukep.entity.Document;
 import ru.example.ukep.entity.User;
+import ru.example.ukep.entity.DocumentSignature;
 import ru.example.ukep.repository.DocumentRepository;
+import ru.example.ukep.repository.DocumentSignatureRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,11 +25,14 @@ import java.util.UUID;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentSignatureRepository signatureRepository;
     private final Path storageRoot;
 
     public DocumentService(DocumentRepository documentRepository,
+                           DocumentSignatureRepository signatureRepository,
                            @Value("${app.storage-path}") String storagePath) throws IOException {
         this.documentRepository = documentRepository;
+        this.signatureRepository = signatureRepository;
         this.storageRoot = Paths.get(storagePath).toAbsolutePath().normalize();
         Files.createDirectories(storageRoot);
     }
@@ -88,17 +93,68 @@ public class DocumentService {
 
     public Path getPath(Document doc) { return storageRoot.resolve(doc.getStoredName()); }
 
+    /** Добавить новую подпись документу (неограниченное количество). */
+    @Transactional
+    public DocumentSignature addSignature(Long docId, User signer,
+                                          String signatureBase64,
+                                          String signerSubject, String signerSerial) {
+        Document doc = documentRepository.findById(docId)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+
+        DocumentSignature sig = new DocumentSignature();
+        sig.setDocument(doc);
+        sig.setSignatureBase64(signatureBase64);
+        sig.setSignedAt(Instant.now());
+        sig.setSignerSubject(signerSubject);
+        sig.setSignerSerial(signerSerial);
+        sig.setSignerUser(signer);
+        signatureRepository.save(sig);
+
+        // Флаг "signed" на документе = есть ли хотя бы одна подпись
+        if (!doc.isSigned()) {
+            doc.setSigned(true);
+            doc.setSignedAt(sig.getSignedAt());
+            doc.setSignerSubject(signerSubject);
+            doc.setSignerSerial(signerSerial);
+            documentRepository.save(doc);
+        }
+        return sig;
+    }
+
+    /** Получить подпись по id. */
+    public DocumentSignature getSignature(Long signatureId) {
+        return signatureRepository.findById(signatureId)
+                .orElseThrow(() -> new IllegalArgumentException("Подпись не найдена"));
+    }
+
+    /** Все подписи документа. */
+    public List<DocumentSignature> listSignatures(Long documentId) {
+        return signatureRepository.findAllByDocumentIdOrderBySignedAtAsc(documentId);
+    }
+
+    /** Удалить подпись. */
+    @Transactional
+    public void deleteSignature(Long signatureId) {
+        DocumentSignature sig = getSignature(signatureId);
+        Document doc = sig.getDocument();
+        signatureRepository.delete(sig);
+
+        // Если больше нет подписей — сбросить флаг
+        if (signatureRepository.countByDocumentId(doc.getId()) == 0) {
+            doc.setSigned(false);
+            doc.setSignedAt(null);
+            doc.setSignerSubject(null);
+            doc.setSignerSerial(null);
+            documentRepository.save(doc);
+        }
+    }
+
+    /** Legacy-метод для совместимости. */
+    @Deprecated
     @Transactional
     public void saveSignature(Long docId, User owner, String signatureBase64,
                               String signerSubject, String signerSerial) {
-        Document doc = documentRepository.findById(docId)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
-        doc.setSignatureBase64(signatureBase64);
-        doc.setSigned(true);
-        doc.setSignedAt(Instant.now());
-        doc.setSignerSubject(signerSubject);
-        doc.setSignerSerial(signerSerial);
-        documentRepository.save(doc);
+        addSignature(docId, owner, signatureBase64, signerSubject, signerSerial);
     }
 
     private String sanitize(String n) { return n == null ? "file" : n.replaceAll("[^a-zA-Z0-9._-]", "_"); }

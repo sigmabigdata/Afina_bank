@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.example.ukep.entity.Document;
+import ru.example.ukep.entity.DocumentSignature;
 import ru.example.ukep.entity.Role;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
@@ -244,24 +245,32 @@ public class AdminController {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
 
-        List<Document> docs = documentRepository.findAllByOwnerOrderByUploadedAtDesc(user)
-                .stream().filter(Document::isSigned).toList();
-        if (docs.isEmpty()) return ResponseEntity.notFound().build();
-
+        List<Document> docs = documentRepository.findAllByOwnerOrderByUploadedAtDesc(user);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Set<String> usedNames = new HashSet<>();
+        int total = 0;
+
         try (ZipOutputStream zip = new ZipOutputStream(baos)) {
             for (Document d : docs) {
-                if (d.getSignatureBase64() == null) continue;
-                byte[] sig = Base64.getDecoder().decode(d.getSignatureBase64().replaceAll("\\s+", ""));
+                List<DocumentSignature> sigs = documentService.listSignatures(d.getId());
+                if (sigs.isEmpty()) continue;
+
                 String base = stripExtension(d.getOriginalName());
-                String entry = uniqueEntryName(base + ".sig", usedNames);
-                zip.putNextEntry(new ZipEntry(entry));
-                zip.write(sig);
-                zip.closeEntry();
+                for (int i = 0; i < sigs.size(); i++) {
+                    DocumentSignature sig = sigs.get(i);
+                    byte[] bytes = Base64.getDecoder().decode(sig.getSignatureBase64().replaceAll("\s+", ""));
+                    String entry = uniqueEntryName(base + "_sig_" + (i + 1) + ".sig", usedNames);
+                    zip.putNextEntry(new ZipEntry(entry));
+                    zip.write(bytes);
+                    zip.closeEntry();
+                    total++;
+                }
             }
         }
-        String zn = "signatures_" + user.getId() + ".zip";
+
+        if (total == 0) return ResponseEntity.notFound().build();
+
+        String zn = "signatures_user_" + user.getId() + ".zip";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
@@ -316,6 +325,48 @@ public class AdminController {
         try {
             documentService.deleteAsAdmin(id);
             ra.addFlashAttribute("ok", "Документ удалён");
+        } catch (Exception e) {
+            ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());
+        }
+        return "redirect:/admin/users/" + ownerId;
+    }
+
+    /** Скачать конкретную подпись (админ). */
+    @GetMapping("/documents/{id}/signatures/{sigId}/download")
+    public ResponseEntity<byte[]> downloadSignature(@PathVariable Long id,
+                                                    @PathVariable Long sigId) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+        DocumentSignature sig = documentService.getSignature(sigId);
+        if (!sig.getDocument().getId().equals(doc.getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        byte[] bytes = Base64.getDecoder().decode(sig.getSignatureBase64().replaceAll("\\s+", ""));
+        String base = stripExtension(doc.getOriginalName());
+        String fileName = base + "_sig_" + sig.getId() + ".sig";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                        URLEncoder.encode(fileName, StandardCharsets.UTF_8))
+                .body(bytes);
+    }
+
+    /** Удалить подпись (админ). */
+    @PostMapping("/documents/{id}/signatures/{sigId}/delete")
+    public String deleteSignature(@PathVariable Long id,
+                                  @PathVariable Long sigId,
+                                  RedirectAttributes ra) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+        DocumentSignature sig = documentService.getSignature(sigId);
+        if (!sig.getDocument().getId().equals(doc.getId())) {
+            ra.addFlashAttribute("err", "Подпись не относится к документу");
+            return "redirect:/admin/users/" + doc.getOwner().getId();
+        }
+        Long ownerId = doc.getOwner().getId();
+        try {
+            documentService.deleteSignature(sigId);
+            ra.addFlashAttribute("ok", "Подпись удалена");
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());
         }

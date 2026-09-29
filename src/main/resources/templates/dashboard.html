@@ -56,23 +56,35 @@
                 </div>
             </div>
 
-            <div th:if="${d.signed}" class="sig-block">
+            <div th:if="${not #lists.isEmpty(d.signatures)}" class="sig-block">
                 <div class="sig-icon">✓</div>
                 <div class="sig-info">
-                    <div class="sig-title">Электронная подпись (CAdES-BES, отсоединённая)</div>
-                    <div class="sig-subject" th:text="${d.signerSubject}">CN=...</div>
-                    <div class="sig-meta">
-                        <span th:text="'Подписан: ' + ${#temporals.format(d.signedAt,'dd.MM.yyyy HH:mm')}">—</span>
+                    <div class="sig-title">
+                        Подписи: <span th:text="${#lists.size(d.signatures)}">0</span>
+                    </div>
+                    <div th:each="sig, st : ${d.signatures}" class="sig-item">
+                        <div class="sig-subject">
+                            <span th:text="${st.index + 1} + '. '">1. </span>
+                            <span th:text="${sig.signerSubject}">ФИО</span>
+                        </div>
+                        <div class="sig-meta">
+                            <span th:text="${#temporals.format(sig.signedAt,'dd.MM.yyyy HH:mm')}">—</span>
+                            <span> · </span>
+                            <span th:text="'serial=' + ${sig.signerSerial}">—</span>
+                        </div>
+                        <div class="sig-actions">
+                            <a th:href="@{'/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/download'}"
+                               class="btn-sig">⬇ .sig</a>
+                            <form method="post"
+                                  th:action="@{'/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/delete'}"
+                                  onsubmit="return confirm('Удалить подпись?');"
+                                  style="display:inline">
+                                <button type="submit" class="link danger" title="Удалить подпись">🗑</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
-                <div class="sig-actions">
-                    <a th:href="@{'/documents/' + ${d.id} + '/signature/download'}"
-                       class="btn-sig">⬇ Подпись (.sig)</a>
-                    <a th:href="@{'/documents/' + ${d.id} + '/download-signed'}"
-                       class="btn-sig">📦 Документ + подпись</a>
-                </div>
             </div>
-        </div>
 
         <div th:if="${#lists.isEmpty(documents)}" class="empty">
             Документов пока нет. Загрузите первый документ выше.

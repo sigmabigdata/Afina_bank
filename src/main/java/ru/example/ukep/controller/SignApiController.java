@@ -65,7 +65,7 @@ public class SignApiController {
                     documentService.getPath(doc), sig);
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));
-            documentService.saveSignature(doc.getId(), owner, sig, subject, serial);
+            documentService.addSignature(doc.getId(), owner, sig, subject, serial);
             return ResponseEntity.ok(Map.of(
                     "valid", true,
                     "signersCount", result.get("signersCount"),

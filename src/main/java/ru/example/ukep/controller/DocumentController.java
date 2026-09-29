@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ru.example.ukep.entity.Document;
+import ru.example.ukep.entity.DocumentSignature;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.UserRepository;
 import ru.example.ukep.service.DocumentService;
@@ -155,5 +156,39 @@ public class DocumentController {
             i++;
         } while (!used.add(candidate));
         return candidate;
+    }
+
+    /** Скачать конкретную подпись. */
+    @GetMapping("/{id}/signatures/{sigId}/download")
+    public ResponseEntity<byte[]> downloadSignature(@PathVariable Long id,
+                                                    @PathVariable Long sigId,
+                                                    @AuthenticationPrincipal UserDetails p) {
+        Document doc = documentService.getOwned(id, current(p));
+        DocumentSignature sig = documentService.getSignature(sigId);
+        if (!sig.getDocument().getId().equals(doc.getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        byte[] bytes = Base64.getDecoder().decode(sig.getSignatureBase64().replaceAll("\\s+", ""));
+        String base = stripExtension(doc.getOriginalName());
+        String fileName = base + "_sig_" + sig.getId() + ".sig";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                        URLEncoder.encode(fileName, StandardCharsets.UTF_8))
+                .body(bytes);
+    }
+
+    /** Удалить подпись (если она своя). */
+    @PostMapping("/{id}/signatures/{sigId}/delete")
+    public String deleteSignature(@PathVariable Long id,
+                                  @PathVariable Long sigId,
+                                  @AuthenticationPrincipal UserDetails p) {
+        Document doc = documentService.getOwned(id, current(p));
+        DocumentSignature sig = documentService.getSignature(sigId);
+        if (!sig.getDocument().getId().equals(doc.getId())) {
+            throw new IllegalArgumentException("Подпись не относится к документу");
+        }
+        documentService.deleteSignature(sigId);
+        return "redirect:/dashboard";
     }
 }

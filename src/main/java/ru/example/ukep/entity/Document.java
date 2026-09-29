@@ -3,6 +3,8 @@ package ru.example.ukep.entity;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "documents")
@@ -42,6 +44,10 @@ public class Document {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private User owner;
 
+    @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("signedAt ASC")
+    private List<DocumentSignature> signatures = new ArrayList<>();
+
     // --- getters ---
     public Long getId() { return id; }
     public String getOriginalName() { return originalName; }
@@ -56,6 +62,7 @@ public class Document {
     public String getSignerSerial() { return signerSerial; }
     public Instant getUploadedAt() { return uploadedAt; }
     public User getOwner() { return owner; }
+    public List<DocumentSignature> getSignatures() { return signatures; }
 
     // --- setters ---
     public void setId(Long id) { this.id = id; }
@@ -71,4 +78,5 @@ public class Document {
     public void setSignerSerial(String signerSerial) { this.signerSerial = signerSerial; }
     public void setUploadedAt(Instant uploadedAt) { this.uploadedAt = uploadedAt; }
     public void setOwner(User owner) { this.owner = owner; }
+    public void setSignatures(List<DocumentSignature> signatures) { this.signatures = signatures; }
 }
