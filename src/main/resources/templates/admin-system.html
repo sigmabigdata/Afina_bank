@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Афина · Система</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}" class="active">Система</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <h1>Состояние системы</h1>
+
+    <!-- Карточки метрик -->
+    <div class="metrics-grid">
+        <!-- CPU -->
+        <div class="metric-card">
+            <div class="metric-icon">⚡</div>
+            <div class="metric-label">CPU</div>
+            <div class="metric-value">
+                <span th:text="${cpu['percent']}">0</span><span class="metric-unit">%</span>
+            </div>
+            <div class="metric-sub">
+                ядер: <b th:text="${cpu['cores']}">0</b>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill"
+                     th:style="'width:' + ${cpu['percent']} + '%'"></div>
+            </div>
+        </div>
+
+        <!-- RAM -->
+        <div class="metric-card">
+            <div class="metric-icon">🧠</div>
+            <div class="metric-label">Память</div>
+            <div class="metric-value">
+                <span th:text="${memory['percent']}">0</span><span class="metric-unit">%</span>
+            </div>
+            <div class="metric-sub">
+                <b th:text="${memory['used']}">0</b> / <span th:text="${memory['total']}">0</span> МБ
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill"
+                     th:style="'width:' + ${memory['percent']} + '%'"></div>
+            </div>
+        </div>
+
+        <!-- Диск -->
+        <div class="metric-card">
+            <div class="metric-icon">💾</div>
+            <div class="metric-label">Диск</div>
+            <div class="metric-value">
+                <span th:text="${disk['percent']}">0</span><span class="metric-unit">%</span>
+            </div>
+            <div class="metric-sub">
+                <b th:text="${disk['used']}">0</b> / <span th:text="${disk['total']}">0</span> ГБ
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill"
+                     th:style="'width:' + ${disk['percent']} + '%'"></div>
+            </div>
+        </div>
+
+        <!-- Uptime -->
+        <div class="metric-card">
+            <div class="metric-icon">⏱</div>
+            <div class="metric-label">Uptime</div>
+            <div class="metric-value-small" th:text="${uptime}">0с</div>
+            <div class="metric-sub">с момента запуска</div>
+        </div>
+
+        <!-- БД -->
+        <div class="metric-card">
+            <div class="metric-icon">🗄</div>
+            <div class="metric-label">Размер БД</div>
+            <div class="metric-value-small" th:text="${db['sizePretty']}">0</div>
+            <div class="metric-sub">
+                соединений: <b th:text="${db['connections']}">0</b>
+            </div>
+        </div>
+
+        <!-- Данные -->
+        <div class="metric-card">
+            <div class="metric-icon">📊</div>
+            <div class="metric-label">Данные</div>
+            <div class="metric-value-small">
+                <span th:text="${db['usersCount']}">0</span> /
+                <span th:text="${db['docsCount']}">0</span> /
+                <span th:text="${db['sigsCount']}">0</span>
+            </div>
+            <div class="metric-sub">клиенты / документы / подписи</div>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <!-- Таблицы БД -->
+        <section class="panel">
+            <h2>Таблицы БД</h2>
+            <table class="docs">
+                <thead>
+                <tr><th>Таблица</th><th>Строк</th><th>Размер</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="t : ${db['tables']}">
+                    <td th:text="${t['name']}">—</td>
+                    <td th:text="${t['rows']}">0</td>
+                    <td th:text="${t['size']}">0 B</td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(db['tables'])}">
+                    <td colspan="3" class="muted center">Нет данных</td>
+                </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Миграции -->
+        <section class="panel">
+            <h2>Миграции</h2>
+            <table class="docs">
+                <thead>
+                <tr><th>V</th><th>Описание</th><th>OK</th><th>Дата</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="m : ${db['migrations']}">
+                    <td th:text="${m['version']}">1</td>
+                    <td th:text="${m['description']}">init</td>
+                    <td>
+                        <span th:if="${m['success']}" class="badge ok">✓</span>
+                        <span th:unless="${m['success']}" class="badge warn">✗</span>
+                    </td>
+                    <td th:text="${#temporals.format(m['installed_on'],'dd.MM.yy HH:mm')}">—</td>
+                </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <div class="two-col">
+        <!-- Бэкапы -->
+        <section class="panel">
+            <h2>Бэкапы</h2>
+            <table class="docs">
+                <thead>
+                <tr><th>Файл</th><th>Размер</th><th>Дата</th><th></th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="b : ${backups}">
+                    <td th:text="${b.name}">—</td>
+                    <td th:text="${b.sizePretty}">—</td>
+                    <td th:text="${#temporals.format(b.createdAt,'dd.MM.yy HH:mm')}">—</td>
+                    <td>
+                        <a th:href="@{'/admin/system/backups/' + ${b.name} + '/download'}"
+                           class="btn-sig btn-sm" title="Скачать">⬇</a>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(backups)}">
+                    <td colspan="4" class="muted center">
+                        Бэкапов нет. Они создаются cron'ом в 3:00 или вручную: ./backup-prod.sh
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Runtime -->
+        <section class="panel">
+            <h2>Runtime</h2>
+            <table class="kv-table">
+                <tr th:each="e : ${runtime}">
+                    <td class="kv-key" th:text="${e.key}">—</td>
+                    <td class="kv-val" th:text="${e.value}">—</td>
+                </tr>
+            </table>
+        </section>
+    </div>
+
+    <!-- Логи -->
+    <section class="panel">
+        <div class="panel-head">
+            <h2 style="margin:0">Логи приложения</h2>
+            <button type="button" id="refresh-logs" class="btn-ghost btn-sm">↻ Обновить</button>
+        </div>
+        <pre id="log-view" class="log-view">Загрузка...</pre>
+    </section>
+</main>
+
+<script>
+    async function loadLogs() {
+        try {
+            const r = await fetch('/admin/system/logs?lines=200');
+            const text = await r.text();
+            document.getElementById('log-view').textContent = text;
+            document.getElementById('log-view').scrollTop =
+                document.getElementById('log-view').scrollHeight;
+        } catch (e) {
+            document.getElementById('log-view').textContent = 'Ошибка: ' + e.message;
+        }
+    }
+    document.getElementById('refresh-logs').addEventListener('click', loadLogs);
+    loadLogs();
+</script>
+</body>
+</html>

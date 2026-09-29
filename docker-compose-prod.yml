@@ -61,6 +61,8 @@ services:
     volumes:
       - ./storage:/app/storage
       - ./logs:/var/log/afina
+      - ./logs:/app/logs:ro
+      - ./backups:/app/backups:ro
       - ./admins.env:/app/admins.env:ro
       - ./kontur-q-2025.crl:/app/kontur-q-2025.crl:ro
     depends_on:

@@ -145,3 +145,8 @@ management:
       enabled: true
     mail:
       enabled: false   # SMTP может быть временно недоступен, это не критично
+
+# Пути для админ-панели "Система" (монтируются в контейнер)
+app:
+  backups-path: /app/backups
+  logs-path: /app/logs
