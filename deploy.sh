@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# Афина · Автоматизированное развёртывание на VPS
+# Афина · Полное развёртывание на чистом VPS
 # ============================================================
 # Требования:
-#   - Ubuntu 22.04 / 24.04 LTS (x86_64)
-#   - Root или sudo
-#   - Файлы .env.prod и admins.env заполнены
-#   - cryptopro-dist/linux-amd64_deb.tgz в корне проекта
+#   - Ubuntu 22.04/24.04 LTS (x86_64)
+#   - root или sudo
+#   - Файлы в корне проекта: .env.prod, admins.env, certs/, cryptopro-dist/
 #
 # Запуск: sudo ./deploy.sh
 # ============================================================
@@ -14,177 +13,120 @@
 set -e
 cd "$(dirname "$0")"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log()  { echo -e "${BLUE}▶ $*${NC}"; }
+ok()   { echo -e "${GREEN}✅ $*${NC}"; }
+warn() { echo -e "${YELLOW}⚠️  $*${NC}"; }
+err()  { echo -e "${RED}❌ $*${NC}"; exit 1; }
 
-log()    { echo -e "${BLUE}▶ $*${NC}"; }
-ok()     { echo -e "${GREEN}✅ $*${NC}"; }
-warn()   { echo -e "${YELLOW}⚠️  $*${NC}"; }
-err()    { echo -e "${RED}❌ $*${NC}"; exit 1; }
-
-# ============================================================
-# 0. Проверки перед запуском
-# ============================================================
+# ----- 0. Проверки -----
 log "0/8 — Проверка окружения"
-
-if [ "$EUID" -ne 0 ]; then
-    err "Скрипт должен запускаться от root или через sudo"
-fi
-
-if [ ! -f ".env.prod" ]; then
-    err "Файл .env.prod не найден. Скопируй .env.prod.example и заполни."
-fi
-
-if [ ! -f "admins.env" ]; then
-    err "Файл admins.env не найден. Скопируй admins.env.example и заполни."
-fi
-
-if [ ! -f "cryptopro-dist/linux-amd64_deb.tgz" ]; then
-    err "Дистрибутив CryptoPro не найден в cryptopro-dist/"
-fi
-
-if [ ! -f "kontur-q-2025.crl" ]; then
-    warn "CRL-файл kontur-q-2025.crl не найден — проверка подписи не будет работать"
-fi
-
-ARCH=$(uname -m)
-if [ "$ARCH" != "x86_64" ]; then
-    err "Требуется x86_64. Текущая архитектура: $ARCH. CryptoPro не соберётся на ARM."
-fi
-
+[ "$EUID" -eq 0 ] || err "Запусти через sudo"
+[ -f .env.prod ] || err ".env.prod не найден (скопируй из .env.prod.example)"
+[ -f admins.env ] || err "admins.env не найден"
+[ -f certs/guc_root.cer ] || err "certs/guc_root.cer не найден — положи в certs/"
+[ -f certs/kontur-q-2026.crt ] || err "certs/kontur-q-2026.crt не найден"
+[ -f cryptopro-dist/linux-amd64_deb.tgz ] || err "cryptopro-dist/linux-amd64_deb.tgz не найден"
+[ "$(uname -m)" = "x86_64" ] || err "Требуется x86_64 (CryptoPro не соберётся на ARM)"
 ok "Окружение готово"
 
-# ============================================================
-# 1. Обновление системы
-# ============================================================
-log "1/8 — Обновление Ubuntu"
+# ----- 1. Обновление системы -----
+log "1/8 — apt update && upgrade"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -o Acquire::Retries=5
 apt-get upgrade -y
 ok "Система обновлена"
 
-# ============================================================
-# 2. Установка Docker
-# ============================================================
-log "2/8 — Установка Docker"
-if ! command -v docker &> /dev/null; then
+# ----- 2. Docker -----
+log "2/8 — Docker"
+if ! command -v docker &>/dev/null; then
     curl -fsSL https://get.docker.com | sh
-    systemctl enable docker
-    systemctl start docker
+    systemctl enable --now docker
     ok "Docker установлен"
 else
-    ok "Docker уже установлен"
+    ok "Docker уже есть"
 fi
-
-if ! docker compose version &> /dev/null; then
-    err "Docker Compose v2 не установлен. Установи вручную: apt install docker-compose-plugin"
-fi
-
+docker compose version >/dev/null 2>&1 || err "docker compose v2 не установлен"
 docker --version
 docker compose version
 
-# ============================================================
-# 3. Установка утилит
-# ============================================================
-log "3/8 — Установка утилит"
+# ----- 3. Утилиты -----
+log "3/8 — Утилиты"
 apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg lsb-release ufw fail2ban
-
+    ca-certificates curl gnupg lsb-release iptables-persistent fail2ban
 ok "Утилиты установлены"
 
-# ============================================================
-# 4. Firewall (UFW)
-# ============================================================
-log "4/8 — Настройка firewall"
-ufw --force enable
-ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP (Let'\''s Encrypt)'
-ufw allow 443/tcp comment 'HTTPS'
-ufw default deny incoming
-ufw default allow outgoing
-ufw status verbose
+# ----- 4. Firewall -----
+log "4/8 — Firewall (iptables-persistent)"
+iptables -I INPUT -p tcp --dport 22  -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -p tcp --dport 80  -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -s 172.18.0.0/16   -j ACCEPT 2>/dev/null || true
+netfilter-persistent save 2>/dev/null || iptables-save > /etc/iptables/rules.v4
 ok "Firewall настроен"
 
-# ============================================================
-# 5. Параметры ядра для PostgreSQL
-# ============================================================
-log "5/8 — Параметры ядра для PostgreSQL"
-if ! grep -q "vm.overcommit_memory" /etc/sysctl.conf; then
+# ----- 5. Параметры ядра -----
+log "5/8 — Параметры ядра"
+if ! grep -q '^vm.overcommit_memory' /etc/sysctl.conf; then
     cat >> /etc/sysctl.conf <<'SYSCTL'
-# PostgreSQL
-vm.overcommit_memory = 2
+vm.overcommit_memory = 1
 vm.swappiness = 1
 SYSCTL
     sysctl -p
 fi
-ok "Параметры ядра применены"
+ok "Ядро настроено"
 
-# ============================================================
-# 6. Создание структуры каталогов
-# ============================================================
-log "6/8 — Подготовка каталогов"
+# ----- 6. Каталоги -----
+log "6/8 — Каталоги"
 mkdir -p storage/documents logs backups
-chmod 755 storage logs backups
-ok "Каталоги готовы"
+# владелец afina (uid=999) внутри контейнера
+chown -R 999:999 storage logs 2>/dev/null || chown -R 1000:1000 storage logs 2>/dev/null || true
+chmod -R 775 storage logs
+ok "Каталоги: storage/documents, logs, backups"
 
-# ============================================================
-# 7. Сборка и запуск стека
-# ============================================================
-log "7/8 — Сборка образов (5–15 минут, зависит от VPS)"
-docker compose -f docker-compose-prod.yml --env-file .env.prod build --no-cache
+# ----- 7. Сборка и запуск -----
+log "7/8 — Сборка образа (5–15 мин)"
+docker compose -f docker-compose-prod.yml --env-file .env.prod build --no-cache app
 
-log "Запуск стека..."
+log "Запуск стека"
 docker compose -f docker-compose-prod.yml --env-file .env.prod up -d
 
-log "Ожидание готовности (90 секунд)..."
+log "Ожидание готовности приложения (90 сек)..."
 sleep 90
+docker compose -f docker-compose-prod.yml --env-file .env.prod ps
 
-docker compose -f docker-compose-prod.yml ps
-
-# ============================================================
-# 8. Проверка
-# ============================================================
-log "8/8 — Проверка состояния"
-
+# ----- 8. Healthcheck -----
+log "8/8 — Healthcheck"
 HEALTH=$(curl -s http://localhost:8080/actuator/health 2>/dev/null || echo "DOWN")
 echo "Health: $HEALTH"
-
-if echo "$HEALTH" | grep -q "UP"; then
+if echo "$HEALTH" | grep -q '"status":"UP"'; then
     ok "Приложение работает"
 else
-    warn "Healthcheck не отвечает — смотри логи:"
-    echo "  docker compose -f docker-compose-prod.yml logs app | tail -50"
+    warn "Healthcheck не отвечает. Логи:"
+    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app --tail=40
 fi
 
-# ============================================================
-# Cron для бэкапов
-# ============================================================
-log "Настройка cron для бэкапов"
-CRON_FILE=/etc/cron.d/afina-backup
-cat > "$CRON_FILE" <<CRON
-# Бэкап Афины каждый день в 3:00
+# ----- Cron для бэкапов -----
+CRON=/etc/cron.d/afina-backup
+cat > "$CRON" <<CRONEOF
+# Афина: ежедневный бэкап БД в 3:00
 0 3 * * * root cd $(pwd) && ./backup-prod.sh >> logs/backup.log 2>&1
-CRON
-chmod 644 "$CRON_FILE"
-ok "Cron настроен: $CRON_FILE"
+CRONEOF
+chmod 644 "$CRON"
+ok "Cron бэкапа: $CRON (ежедневно в 3:00)"
 
-# ============================================================
-# Финал
-# ============================================================
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}✅ Развёртывание завершено!${NC}"
+echo -e "${GREEN}✅ Развёртывание завершено${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════${NC}"
 echo ""
-echo "Адрес:         $(grep APP_BASE_URL .env.prod | cut -d'=' -f2)"
-echo "Логи app:      docker compose -f docker-compose-prod.yml logs -f app"
-echo "Логи caddy:    docker compose -f docker-compose-prod.yml logs -f caddy"
-echo "Бэкапы:        ./backup-prod.sh"
-echo "Восстановить:  ./restore-prod.sh backups/afina_*.sql.gz"
+echo "Адрес:      $(grep APP_BASE_URL .env.prod | cut -d= -f2)"
+echo "Логи app:   docker compose -f docker-compose-prod.yml --env-file .env.prod logs -f app"
+echo "Логи caddy: docker compose -f docker-compose-prod.yml --env-file .env.prod logs -f caddy"
+echo "Бэкап:      ./backup-prod.sh"
+echo "Восстановить: ./restore-prod.sh backups/afina_*.sql.gz"
 echo ""
-echo "Проверь, что DNS-запись домена указывает на этот сервер."
-echo "Caddy автоматически получит HTTPS-сертификат при первом запросе."
+echo "Не забудь: DNS домена должен указывать на этот IP,"
+echo "иначе Caddy не получит HTTPS-сертификат."
 echo ""

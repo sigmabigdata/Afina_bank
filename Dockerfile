@@ -81,6 +81,9 @@ RUN groupadd -r afina && useradd -r -g afina afina && \
 
 COPY --from=build /app/target/ukep-sign-service.jar app.jar
 
+# Сертификаты УЦ — внутрь образа
+COPY certs/ /app/certs/
+
 # Отключаем шум java.util.prefs (CryptoPro использует prefs для license)
 ENV JAVA_TOOL_OPTIONS="-Djava.util.prefs.userRoot=/tmp/.java -Djava.util.prefs.systemRoot=/tmp/.java-system"
 
