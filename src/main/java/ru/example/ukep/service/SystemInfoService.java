@@ -173,9 +173,24 @@ public class SystemInfoService {
         }
 
         try {
-            List<Map<String, Object>> migr = jdbc.queryForList(
+            List<Map<String, Object>> raw = jdbc.queryForList(
                 "SELECT version, description, success, installed_on " +
                 "FROM flyway_schema_history ORDER BY installed_rank");
+            List<Map<String, Object>> migr = new ArrayList<>();
+            for (Map<String, Object> r : raw) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("version", r.get("version"));
+                m.put("description", r.get("description"));
+                m.put("success", r.get("success"));
+                Object ts = r.get("installed_on");
+                // Timestamp → Instant, чтобы Thymeleaf #temporals умел форматировать
+                if (ts instanceof java.sql.Timestamp) {
+                    m.put("installed_on", ((java.sql.Timestamp) ts).toInstant());
+                } else {
+                    m.put("installed_on", ts);
+                }
+                migr.add(m);
+            }
             result.put("migrations", migr);
         } catch (Exception e) {
             result.put("migrations", List.of());
