@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public class AdminCredentialsFileService {
                 if (s.isEmpty() || s.startsWith("#")) continue;
                 String[] parts = s.split("\\|", 2);
                 if (parts.length < 2) continue;
-                String cn = parts[0].trim();
+                String cn = normalizeCn(parts[0]);
                 String snils = normalizeSnils(parts[1].trim());
                 if (!cn.isEmpty() && !snils.isEmpty()) {
                     result.add(new AdminRecord(cn, snils));
@@ -49,14 +50,31 @@ public class AdminCredentialsFileService {
         return result;
     }
 
-    /** Ищет администратора по CN и СНИЛС. */
+    /** Ищет администратора по CN и СНИЛС (с нормализацией Unicode и пробелов). */
     public Optional<AdminRecord> find(String cn, String snils) {
         if (cn == null || snils == null) return Optional.empty();
-        String cnNorm = cn.trim();
+        String cnNorm = normalizeCn(cn);
         String snilsNorm = normalizeSnils(snils);
+        log.debug("find admin: cnNorm='{}', snilsNorm='{}'", cnNorm, snilsNorm);
         return readAll().stream()
-                .filter(r -> r.cn().equalsIgnoreCase(cnNorm) && r.snils().equals(snilsNorm))
+                .filter(r -> {
+                    String fileCn = normalizeCn(r.cn());
+                    boolean cnMatch = fileCn.equalsIgnoreCase(cnNorm);
+                    boolean snilsMatch = r.snils().equals(snilsNorm);
+                    if (!cnMatch || !snilsMatch) {
+                        log.debug("no match: file cn='{}', file snils='{}'", fileCn, r.snils());
+                    }
+                    return cnMatch && snilsMatch;
+                })
                 .findFirst();
+    }
+
+    /** Нормализация ФИО: NFC + удаление лишних пробелов + trim. */
+    private String normalizeCn(String cn) {
+        if (cn == null) return "";
+        String n = Normalizer.normalize(cn, Normalizer.Form.NFC);
+        n = n.replaceAll("\\s+", " ").trim();
+        return n;
     }
 
     public synchronized void writeAll(List<AdminRecord> list) {
