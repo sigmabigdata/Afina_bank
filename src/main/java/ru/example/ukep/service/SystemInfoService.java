@@ -240,4 +240,81 @@ public class SystemInfoService {
         if (bytes < 1024L * 1024 * 1024) return (bytes / 1024 / 1024) + " MB";
         return String.format("%.2f GB", bytes / 1024.0 / 1024 / 1024);
     }
+
+    /** Диагностические проверки БД. Возвращает список проверок. */
+    public java.util.List<java.util.Map<String, Object>> runDiagnostics() {
+        java.util.List<java.util.Map<String, Object>> list = new java.util.ArrayList<>();
+
+        // 1. Доступность БД
+        list.add(check("Доступность БД", () -> {
+            Integer x = jdbc.queryForObject("SELECT 1", Integer.class);
+            return x != null && x == 1 ? "OK" : "FAIL";
+        }));
+
+        // 2. Роли и права
+        list.add(check("Роли БД (3 ожидаются)", () -> {
+            Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM pg_roles " +
+                "WHERE rolname IN ('afina_app','afina_migrator','afina_auditor')",
+                Integer.class);
+            return n + " / 3";
+        }));
+
+        // 3. Целостность: сироты в documents
+        list.add(check("Документы без владельца", () -> {
+            Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM documents d " +
+                "WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = d.owner_id)",
+                Integer.class);
+            return n == 0 ? "OK (0)" : "ПРОБЛЕМА: " + n;
+        }));
+
+        // 4. Целостность: подписи без документа
+        list.add(check("Подписи без документа", () -> {
+            Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM document_signatures s " +
+                "WHERE NOT EXISTS (SELECT 1 FROM documents d WHERE d.id = s.document_id)",
+                Integer.class);
+            return n == 0 ? "OK (0)" : "ПРОБЛЕМА: " + n;
+        }));
+
+        // 5. Размер БД
+        list.add(check("Размер БД", () -> {
+            String v = jdbc.queryForObject(
+                "SELECT pg_size_pretty(pg_database_size(current_database()))",
+                String.class);
+            return v;
+        }));
+
+        // 6. Миграции
+        list.add(check("Все миграции успешны", () -> {
+            Integer bad = jdbc.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success = false",
+                Integer.class);
+            return bad == 0 ? "OK" : "FAIL: " + bad;
+        }));
+
+        // 7. Активные соединения
+        list.add(check("Активные соединения", () -> {
+            Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()",
+                Integer.class);
+            return String.valueOf(n);
+        }));
+
+        return list;
+    }
+
+    private java.util.Map<String, Object> check(String name, java.util.concurrent.Callable<String> c) {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("name", name);
+        try {
+            m.put("value", c.call());
+            m.put("ok", true);
+        } catch (Exception e) {
+            m.put("value", "Ошибка: " + e.getMessage());
+            m.put("ok", false);
+        }
+        return m;
+    }
 }

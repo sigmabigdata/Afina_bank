@@ -22,59 +22,48 @@
 </header>
 
 <main>
-    <h1>Состояние системы</h1>
+    <div class="sys-head">
+        <h1>Состояние системы</h1>
+        <div class="sys-actions">
+            <button type="button" id="btn-restart" class="btn-ghost">↻ Перезапустить приложение</button>
+        </div>
+    </div>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
 
     <!-- Карточки метрик -->
     <div class="metrics-grid">
-        <!-- CPU -->
         <div class="metric-card">
             <div class="metric-icon">⚡</div>
             <div class="metric-label">CPU</div>
             <div class="metric-value">
                 <span th:text="${cpu['percent']}">0</span><span class="metric-unit">%</span>
             </div>
-            <div class="metric-sub">
-                ядер: <b th:text="${cpu['cores']}">0</b>
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill"
-                     th:style="'width:' + ${cpu['percent']} + '%'"></div>
-            </div>
+            <div class="metric-sub">ядер: <b th:text="${cpu['cores']}">0</b></div>
+            <div class="metric-bar"><div class="metric-bar-fill" th:style="'width:' + ${cpu['percent']} + '%'"></div></div>
         </div>
 
-        <!-- RAM -->
         <div class="metric-card">
             <div class="metric-icon">🧠</div>
             <div class="metric-label">Память</div>
             <div class="metric-value">
                 <span th:text="${memory['percent']}">0</span><span class="metric-unit">%</span>
             </div>
-            <div class="metric-sub">
-                <b th:text="${memory['used']}">0</b> / <span th:text="${memory['total']}">0</span> МБ
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill"
-                     th:style="'width:' + ${memory['percent']} + '%'"></div>
-            </div>
+            <div class="metric-sub"><b th:text="${memory['used']}">0</b> / <span th:text="${memory['total']}">0</span> МБ</div>
+            <div class="metric-bar"><div class="metric-bar-fill" th:style="'width:' + ${memory['percent']} + '%'"></div></div>
         </div>
 
-        <!-- Диск -->
         <div class="metric-card">
             <div class="metric-icon">💾</div>
             <div class="metric-label">Диск</div>
             <div class="metric-value">
                 <span th:text="${disk['percent']}">0</span><span class="metric-unit">%</span>
             </div>
-            <div class="metric-sub">
-                <b th:text="${disk['used']}">0</b> / <span th:text="${disk['total']}">0</span> ГБ
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill"
-                     th:style="'width:' + ${disk['percent']} + '%'"></div>
-            </div>
+            <div class="metric-sub"><b th:text="${disk['used']}">0</b> / <span th:text="${disk['total']}">0</span> ГБ</div>
+            <div class="metric-bar"><div class="metric-bar-fill" th:style="'width:' + ${disk['percent']} + '%'"></div></div>
         </div>
 
-        <!-- Uptime -->
         <div class="metric-card">
             <div class="metric-icon">⏱</div>
             <div class="metric-label">Uptime</div>
@@ -82,17 +71,13 @@
             <div class="metric-sub">с момента запуска</div>
         </div>
 
-        <!-- БД -->
         <div class="metric-card">
             <div class="metric-icon">🗄</div>
             <div class="metric-label">Размер БД</div>
             <div class="metric-value-small" th:text="${db['sizePretty']}">0</div>
-            <div class="metric-sub">
-                соединений: <b th:text="${db['connections']}">0</b>
-            </div>
+            <div class="metric-sub">соединений: <b th:text="${db['connections']}">0</b></div>
         </div>
 
-        <!-- Данные -->
         <div class="metric-card">
             <div class="metric-icon">📊</div>
             <div class="metric-label">Данные</div>
@@ -101,38 +86,102 @@
                 <span th:text="${db['docsCount']}">0</span> /
                 <span th:text="${db['sigsCount']}">0</span>
             </div>
-            <div class="metric-sub">клиенты / документы / подписи</div>
+            <div class="metric-sub">клиенты / док-ты / подписи</div>
         </div>
     </div>
 
+    <!-- Бэкапы -->
+    <section class="panel">
+        <div class="panel-head">
+            <h2 style="margin:0">Бэкапы БД</h2>
+            <form method="post" th:action="@{/admin/system/backups/create}" style="display:inline">
+                <button type="submit" class="btn">＋ Создать бэкап сейчас</button>
+            </form>
+        </div>
+
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Файл</th>
+                <th>Размер</th>
+                <th>Дата</th>
+                <th style="width:220px">Действия</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="b : ${backups}">
+                <td th:text="${b.name}">—</td>
+                <td th:text="${b.sizePretty}">—</td>
+                <td th:text="${#temporals.format(b.createdAt,'dd.MM.yy HH:mm')}">—</td>
+                <td>
+                    <a th:href="@{'/admin/system/backups/' + ${b.name} + '/download'}"
+                       class="btn-sig btn-sm" title="Скачать">⬇ Скачать</a>
+
+                    <button type="button" class="btn-ghost btn-sm btn-restore"
+                            th:attr="data-name=${b.name}" title="Восстановить">⟲ Восстановить</button>
+
+                    <form method="post"
+                          th:action="@{'/admin/system/backups/' + ${b.name} + '/delete'}"
+                          onsubmit="return confirm('Удалить бэкап ' + this.dataset.n + '?');"
+                          th:attr="data-n=${b.name}"
+                          style="display:inline">
+                        <button type="submit" class="btn-danger btn-sm" title="Удалить">🗑</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(backups)}">
+                <td colspan="4" class="muted center">
+                    Бэкапов нет. Создайте первый кнопкой «Создать бэкап сейчас»,
+                    либо настройте cron (deploy.sh делает это автоматически).
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Диагностика -->
+    <section class="panel">
+        <h2>Диагностика</h2>
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Проверка</th>
+                <th>Значение</th>
+                <th style="width:60px">OK</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${checks}">
+                <td th:text="${c['name']}">—</td>
+                <td th:text="${c['value']}">—</td>
+                <td>
+                    <span th:if="${c['ok']}" class="badge ok">✓</span>
+                    <span th:unless="${c['ok']}" class="badge warn">✗</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
     <div class="two-col">
-        <!-- Таблицы БД -->
         <section class="panel">
             <h2>Таблицы БД</h2>
             <table class="docs">
-                <thead>
-                <tr><th>Таблица</th><th>Строк</th><th>Размер</th></tr>
-                </thead>
+                <thead><tr><th>Таблица</th><th>Строк</th><th>Размер</th></tr></thead>
                 <tbody>
                 <tr th:each="t : ${db['tables']}">
                     <td th:text="${t['name']}">—</td>
                     <td th:text="${t['rows']}">0</td>
                     <td th:text="${t['size']}">0 B</td>
                 </tr>
-                <tr th:if="${#lists.isEmpty(db['tables'])}">
-                    <td colspan="3" class="muted center">Нет данных</td>
-                </tr>
                 </tbody>
             </table>
         </section>
 
-        <!-- Миграции -->
         <section class="panel">
             <h2>Миграции</h2>
             <table class="docs">
-                <thead>
-                <tr><th>V</th><th>Описание</th><th>OK</th><th>Дата</th></tr>
-                </thead>
+                <thead><tr><th>V</th><th>Описание</th><th>OK</th><th>Дата</th></tr></thead>
                 <tbody>
                 <tr th:each="m : ${db['migrations']}">
                     <td th:text="${m['version']}">1</td>
@@ -149,33 +198,6 @@
     </div>
 
     <div class="two-col">
-        <!-- Бэкапы -->
-        <section class="panel">
-            <h2>Бэкапы</h2>
-            <table class="docs">
-                <thead>
-                <tr><th>Файл</th><th>Размер</th><th>Дата</th><th></th></tr>
-                </thead>
-                <tbody>
-                <tr th:each="b : ${backups}">
-                    <td th:text="${b.name}">—</td>
-                    <td th:text="${b.sizePretty}">—</td>
-                    <td th:text="${#temporals.format(b.createdAt,'dd.MM.yy HH:mm')}">—</td>
-                    <td>
-                        <a th:href="@{'/admin/system/backups/' + ${b.name} + '/download'}"
-                           class="btn-sig btn-sm" title="Скачать">⬇</a>
-                    </td>
-                </tr>
-                <tr th:if="${#lists.isEmpty(backups)}">
-                    <td colspan="4" class="muted center">
-                        Бэкапов нет. Они создаются cron'ом в 3:00 или вручную: ./backup-prod.sh
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <!-- Runtime -->
         <section class="panel">
             <h2>Runtime</h2>
             <table class="kv-table">
@@ -185,32 +207,101 @@
                 </tr>
             </table>
         </section>
-    </div>
 
-    <!-- Логи -->
-    <section class="panel">
-        <div class="panel-head">
-            <h2 style="margin:0">Логи приложения</h2>
-            <button type="button" id="refresh-logs" class="btn-ghost btn-sm">↻ Обновить</button>
-        </div>
-        <pre id="log-view" class="log-view">Загрузка...</pre>
-    </section>
+        <section class="panel">
+            <h2>Логи приложения</h2>
+            <div class="panel-head">
+                <button type="button" id="refresh-logs" class="btn-ghost btn-sm">↻ Обновить</button>
+            </div>
+            <pre id="log-view" class="log-view">Загрузка...</pre>
+        </section>
+    </div>
 </main>
 
+<!-- Модальное окно подтверждения восстановления -->
+<div id="modal-restore" class="modal" style="display:none">
+    <div class="modal-card">
+        <h2>Восстановить БД из бэкапа?</h2>
+        <p>
+            Файл: <b id="restore-name">—</b>
+        </p>
+        <div class="alert err">
+            ⚠️ Все текущие данные будут заменены содержимым бэкапа.<br>
+            Перед восстановлением автоматически создаётся safety-бэкап.<br>
+            После восстановления перезапустите приложение.
+        </div>
+        <p>
+            Введите <code>RESTORE</code> для подтверждения:
+        </p>
+        <input type="text" id="restore-confirm" placeholder="RESTORE" autocomplete="off"/>
+        <div class="modal-actions">
+            <button type="button" class="btn-ghost" id="restore-cancel">Отмена</button>
+            <form method="post" id="restore-form" style="display:inline">
+                <input type="hidden" name="confirm" id="restore-confirm-val"/>
+                <button type="submit" class="btn-danger">Восстановить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+    // ============ Логи ============
     async function loadLogs() {
         try {
             const r = await fetch('/admin/system/logs?lines=200');
             const text = await r.text();
-            document.getElementById('log-view').textContent = text;
-            document.getElementById('log-view').scrollTop =
-                document.getElementById('log-view').scrollHeight;
+            const el = document.getElementById('log-view');
+            el.textContent = text;
+            el.scrollTop = el.scrollHeight;
         } catch (e) {
             document.getElementById('log-view').textContent = 'Ошибка: ' + e.message;
         }
     }
     document.getElementById('refresh-logs').addEventListener('click', loadLogs);
     loadLogs();
+
+    // ============ Восстановление ============
+    const modal = document.getElementById('modal-restore');
+    const restoreName = document.getElementById('restore-name');
+    const restoreForm = document.getElementById('restore-form');
+    const restoreInput = document.getElementById('restore-confirm');
+    const restoreConfirmVal = document.getElementById('restore-confirm-val');
+
+    document.querySelectorAll('.btn-restore').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const name = btn.dataset.name;
+            restoreName.textContent = name;
+            restoreForm.action = '/admin/system/backups/' + encodeURIComponent(name) + '/restore';
+            restoreInput.value = '';
+            restoreConfirmVal.value = '';
+            modal.style.display = 'flex';
+            restoreInput.focus();
+        });
+    });
+
+    restoreInput.addEventListener('input', () => {
+        restoreConfirmVal.value = restoreInput.value;
+    });
+
+    document.getElementById('restore-cancel').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    // ============ Перезапуск ============
+    document.getElementById('btn-restart').addEventListener('click', async () => {
+        if (!confirm('Перезапустить приложение? Сессия будет потеряна.')) return;
+        try {
+            const r = await fetch('/admin/system/restart', { method: 'POST' });
+            if (r.ok) {
+                alert('Перезапуск запущен. Через ~30 секунд обновите страницу.');
+            } else {
+                alert('Не удалось перезапустить: ' + r.status);
+            }
+        } catch (e) {
+            // Сервер может оборвать соединение сразу
+            alert('Перезапуск идёт. Подождите 30 секунд и зайдите заново.');
+        }
+    });
 </script>
 </body>
 </html>

@@ -860,3 +860,70 @@ table.docs tr:hover td { background: #fafbff; }
     font-weight: 600;
     color: #6366f1;
 }
+
+/* ============ System tab ============ */
+.sys-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.sys-actions { display: flex; gap: 10px; }
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+.modal-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 26px 28px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.modal-card h2 { margin: 0 0 12px; font-size: 18px; }
+.modal-card input[type=text] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: ui-monospace, Menlo, monospace;
+    margin-bottom: 16px;
+}
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.btn-danger:hover { background: #b91c1c; }
+
+.btn-sm { font-size: 12px; padding: 5px 10px; }
+.btn-sig {
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    padding: 6px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 12px;
+    display: inline-block;
+    margin-right: 4px;
+}
+.btn-sig:hover { background: #e0e7ff; }

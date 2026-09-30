@@ -1,19 +1,25 @@
 package ru.example.ukep.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.example.ukep.service.BackupService;
 import ru.example.ukep.service.LogService;
 import ru.example.ukep.service.SystemInfoService;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Controller
 @RequestMapping("/admin/system")
 public class SystemInfoController {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemInfoController.class);
 
     private final SystemInfoService sys;
     private final BackupService backups;
@@ -36,7 +42,55 @@ public class SystemInfoController {
         model.addAttribute("db", sys.getDatabaseStats());
         model.addAttribute("runtime", sys.getRuntimeInfo());
         model.addAttribute("backups", backups.list());
+        model.addAttribute("checks", sys.runDiagnostics());
         return "admin-system";
+    }
+
+    // ==================== БЭКАПЫ ====================
+
+    @PostMapping("/backups/create")
+    public String createBackup(RedirectAttributes ra) {
+        try {
+            String name = backups.create();
+            ra.addFlashAttribute("ok", "Бэкап создан: " + name);
+        } catch (Exception e) {
+            log.error("Backup create failed", e);
+            ra.addFlashAttribute("err", "Ошибка создания бэкапа: " + e.getMessage());
+        }
+        return "redirect:/admin/system";
+    }
+
+    @PostMapping("/backups/{name}/delete")
+    public String deleteBackup(@PathVariable String name, RedirectAttributes ra) {
+        try {
+            backups.delete(name);
+            ra.addFlashAttribute("ok", "Бэкап удалён: " + name);
+        } catch (Exception e) {
+            log.error("Backup delete failed", e);
+            ra.addFlashAttribute("err", "Ошибка удаления: " + e.getMessage());
+        }
+        return "redirect:/admin/system";
+    }
+
+    @PostMapping("/backups/{name}/restore")
+    public String restoreBackup(@PathVariable String name,
+                                @RequestParam String confirm,
+                                RedirectAttributes ra) {
+        if (!"RESTORE".equals(confirm)) {
+            ra.addFlashAttribute("err", "Неверное подтверждение. Введите RESTORE.");
+            return "redirect:/admin/system";
+        }
+        try {
+            String safety = backups.restore(name);
+            ra.addFlashAttribute("ok",
+                    "БД восстановлена из " + name +
+                    ". Safety-бэкап: " + safety +
+                    ". Перезапустите приложение!");
+        } catch (Exception e) {
+            log.error("Backup restore failed", e);
+            ra.addFlashAttribute("err", "Ошибка восстановления: " + e.getMessage());
+        }
+        return "redirect:/admin/system";
     }
 
     @GetMapping("/backups/{name}/download")
@@ -54,11 +108,32 @@ public class SystemInfoController {
         }
     }
 
+    // ==================== ЛОГИ ====================
+
     @GetMapping("/logs")
     @ResponseBody
     public String logs(@RequestParam(defaultValue = "200") int lines) {
         int n = Math.min(Math.max(lines, 10), 2000);
         return String.join("\n", logs.tail(n));
+    }
+
+    // ==================== ПЕРЕЗАПУСК ====================
+
+    /**
+     * Перезапуск приложения.
+     * Приложение завершает себя (System.exit), а Docker (restart: unless-stopped)
+     * поднимает его заново с новым пулом соединений к БД.
+     */
+    @PostMapping("/restart")
+    @ResponseBody
+    public ResponseEntity<?> restart() {
+        log.warn("Restart requested by admin");
+        new Thread(() -> {
+            try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+            log.warn("Exiting for restart");
+            System.exit(0);
+        }, "restart-thread").start();
+        return ResponseEntity.ok(Map.of("ok", true, "message", "Перезапуск через 1 сек"));
     }
 
     private String formatDuration(long seconds) {

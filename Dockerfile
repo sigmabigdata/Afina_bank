@@ -42,6 +42,7 @@ WORKDIR /app
 RUN apt-get update -o Acquire::Retries=5 && \
     apt-get install -y --no-install-recommends \
         pcscd libpcsclite1 curl ca-certificates lsb-base \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Установка КриптоПро CSP для Linux ----
