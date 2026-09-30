@@ -149,15 +149,12 @@ public class BackupService {
 
         log.warn("Restoring database from {}...", name);
 
-        // 1. Safety-бэкап текущего состояния (от migrator)
         String safety = create();
         log.info("Safety backup before restore: {}", safety);
 
-        // 2. Убиваем активные соединения
         terminateConnections();
         Thread.sleep(1000);
 
-        // 3. Сносим схему public — от superuser (иначе extensions и FK мешают)
         runPsqlCommandAsSuperuser(
             "DROP SCHEMA public CASCADE; " +
             "CREATE SCHEMA public; " +
@@ -165,20 +162,14 @@ public class BackupService {
             "GRANT USAGE ON SCHEMA public TO afina_app, afina_auditor;"
         );
 
-        // 4. Заливаем дамп под superuser — чтобы CREATE EXTENSION работал
         runPsqlFromFileAsSuperuser(file, name.endsWith(".gz"));
 
-        // 5. Возвращаем владельцев таблиц/последовательностей + права
         runPsqlCommandAsSuperuser(
-            "DO $$ " +
-            "DECLARE r RECORD; " +
-            "BEGIN " +
-            "  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP " +
-            "    EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO afina_migrator'; " +
-            "  END LOOP; " +
-            "  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname='public' LOOP " +
-            "    EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO afina_migrator'; " +
-            "  END LOOP; " +
+            "DO $$ DECLARE r RECORD; BEGIN " +
+            "FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP " +
+            "EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO afina_migrator'; END LOOP; " +
+            "FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname='public' LOOP " +
+            "EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO afina_migrator'; END LOOP; " +
             "END $$; " +
             "GRANT ALL ON SCHEMA public TO afina_migrator; " +
             "GRANT USAGE ON SCHEMA public TO afina_app, afina_auditor; " +
@@ -343,5 +334,57 @@ public class BackupService {
         if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
         if (bytes < 1024L * 1024 * 1024) return (bytes / 1024 / 1024) + " MB";
         return String.format("%.2f GB", bytes / 1024.0 / 1024 / 1024);
+    }
+
+    // ===================== SUPERUSER-операции (только для restore) =====================
+
+    private void runPsqlCommandAsSuperuser(String sql) throws IOException, InterruptedException {
+        DbParams db = parseDbParams();
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql", "-h", db.host, "-p", String.valueOf(db.port),
+                "-U", superUser, "-d", db.name,
+                "-v", "ON_ERROR_STOP=1", "-c", sql
+        );
+        pb.environment().put("PGPASSWORD", superPassword);
+        runPsqlProcess(pb, "psql -c (super)");
+    }
+
+    private void runPsqlFromFileAsSuperuser(Path file, boolean gz) throws IOException, InterruptedException {
+        DbParams db = parseDbParams();
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql", "-h", db.host, "-p", String.valueOf(db.port),
+                "-U", superUser, "-d", db.name,
+                "-v", "ON_ERROR_STOP=1"
+        );
+        pb.environment().put("PGPASSWORD", superPassword);
+        Process proc = pb.start();
+
+        final StringBuilder stderrBuf = new StringBuilder();
+        Thread errThread = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(proc.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) stderrBuf.append(line).append("\n");
+            } catch (IOException ignored) {}
+        }, "psql-super-stderr");
+        errThread.setDaemon(true);
+        errThread.start();
+
+        try (OutputStream stdin = proc.getOutputStream();
+             InputStream fileIn = Files.newInputStream(file);
+             InputStream in = gz ? new GZIPInputStream(fileIn) : fileIn) {
+            in.transferTo(stdin);
+            stdin.flush();
+        }
+
+        int rc = proc.waitFor();
+        errThread.join(2000);
+        if (rc != 0) {
+            String err = stderrBuf.toString().trim();
+            log.error("psql (super) restore stderr:\n{}", err);
+            throw new IOException("psql (super) exit " + rc +
+                    (err.isEmpty() ? "" : ":\n" + err));
+        }
+        log.info("psql restore (superuser) completed successfully");
     }
 }
