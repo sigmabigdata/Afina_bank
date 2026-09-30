@@ -41,8 +41,16 @@ WORKDIR /app
 # Системные библиотеки + утилиты
 RUN apt-get update -o Acquire::Retries=5 && \
     apt-get install -y --no-install-recommends \
-        pcscd libpcsclite1 curl ca-certificates lsb-base \
-        postgresql-client \
+        pcscd libpcsclite1 curl ca-certificates lsb-base gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+         -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+         https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main" \
+         > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update -o Acquire::Retries=5 \
+    && apt-get install -y --no-install-recommends postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Установка КриптоПро CSP для Linux ----
