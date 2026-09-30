@@ -177,8 +177,13 @@ public class BackupService {
             "GRANT SELECT ON ALL TABLES IN SCHEMA public TO afina_auditor; " +
             "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_app; " +
             "GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_auditor; " +
-            "GRANT ALL ON flyway_schema_history TO afina_migrator; " +
-            "GRANT SELECT ON flyway_schema_history TO afina_app, afina_auditor;"
+            "DO $$ BEGIN " +
+            "  IF EXISTS (SELECT 1 FROM information_schema.tables " +
+            "             WHERE table_schema='public' AND table_name='flyway_schema_history') THEN " +
+            "    EXECUTE 'GRANT ALL ON flyway_schema_history TO afina_migrator'; " +
+            "    EXECUTE 'GRANT SELECT ON flyway_schema_history TO afina_app, afina_auditor'; " +
+            "  END IF; " +
+            "END $$;"
         );
 
         log.info("Database restored from {}. Safety-backup: {}", name, safety);
