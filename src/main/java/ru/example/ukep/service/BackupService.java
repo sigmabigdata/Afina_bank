@@ -35,12 +35,7 @@ public class BackupService {
     @Value("${spring.flyway.password}")
     private String dbPassword;
 
-    @Value("${spring.datasource.hikari.pool-name:AfinaHikariPool}")
-    private String poolName;
-
     public record BackupFile(String name, long size, Instant createdAt, String sizePretty) {}
-
-    // ===================== СПИСОК =====================
 
     public List<BackupFile> list() {
         Path root = Paths.get(backupsPath);
@@ -69,9 +64,6 @@ public class BackupService {
         }
     }
 
-    // ===================== СОЗДАТЬ =====================
-
-    /** Создаёт бэкап через pg_dump + gzip. Возвращает имя файла. */
     public String create() throws IOException, InterruptedException {
         Files.createDirectories(Paths.get(backupsPath));
         String stamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
@@ -79,7 +71,6 @@ public class BackupService {
         String fileName = "afina_" + stamp + ".sql.gz";
         Path out = Paths.get(backupsPath).resolve(fileName);
 
-        // pg_dump с параметрами из spring.datasource.url
         DbParams db = parseDbParams();
 
         ProcessBuilder pb = new ProcessBuilder(
@@ -92,11 +83,21 @@ public class BackupService {
                 "--no-owner", "--no-privileges"
         );
         pb.environment().put("PGPASSWORD", dbPassword);
-        pb.redirectErrorStream(true);
-
         Process proc = pb.start();
 
-        // Параллельно: stdout pg_dump → GZIPOutputStream → файл
+        final StringBuilder stderrBuf = new StringBuilder();
+        Thread errThread = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(proc.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    stderrBuf.append(line).append("\n");
+                }
+            } catch (IOException ignored) {}
+        }, "pg_dump-stderr");
+        errThread.setDaemon(true);
+        errThread.start();
+
         try (InputStream dumpOut = proc.getInputStream();
              GZIPOutputStream gz = new GZIPOutputStream(
                      new BufferedOutputStream(Files.newOutputStream(out)))) {
@@ -104,16 +105,18 @@ public class BackupService {
         }
 
         int rc = proc.waitFor();
+        errThread.join(2000);
         if (rc != 0) {
             Files.deleteIfExists(out);
-            throw new IOException("pg_dump завершился с кодом " + rc);
+            String err = stderrBuf.toString().trim();
+            log.error("pg_dump stderr:\n{}", err);
+            throw new IOException("pg_dump exit " + rc +
+                    (err.isEmpty() ? "" : ": " + err));
         }
 
         log.info("Backup created: {} ({} bytes)", fileName, Files.size(out));
         return fileName;
     }
-
-    // ===================== УДАЛИТЬ =====================
 
     public void delete(String name) throws IOException {
         Path file = safePath(name);
@@ -124,8 +127,6 @@ public class BackupService {
         log.info("Backup deleted: {}", name);
     }
 
-    // ===================== СКАЧАТЬ =====================
-
     public byte[] read(String name) throws IOException {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
@@ -134,13 +135,6 @@ public class BackupService {
         return Files.readAllBytes(file);
     }
 
-    // ===================== ВОССТАНОВИТЬ =====================
-
-    /**
-     * Восстанавливает БД из бэкапа.
-     * Перед восстановлением автоматически создаёт бэкап "before_restore_<ts>".
-     * После успешного восстановления приложение должно быть перезапущено.
-     */
     public String restore(String name) throws IOException, InterruptedException {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
@@ -149,75 +143,135 @@ public class BackupService {
 
         log.warn("Restoring database from {}...", name);
 
-        // 1. Сначала делаем safety-бэкап текущего состояния
         String safety = create();
         log.info("Safety backup before restore: {}", safety);
 
-        // 2. Убиваем активные соединения к БД (кроме своего)
         terminateConnections();
+        Thread.sleep(1000);
 
-        // 3. Подаём дамп в psql
-        DbParams db = parseDbParams();
-        ProcessBuilder pb = new ProcessBuilder(
-                "psql",
-                "-h", db.host,
-                "-p", String.valueOf(db.port),
-                "-U", dbUser,
-                "-d", db.name,
-                "-q", "--single-transaction",
-                "-v", "ON_ERROR_STOP=1"
+        runPsqlCommand(
+            "DROP SCHEMA public CASCADE; " +
+            "CREATE SCHEMA public; " +
+            "ALTER SCHEMA public OWNER TO afina_migrator; " +
+            "GRANT USAGE ON SCHEMA public TO afina_app, afina_auditor;"
         );
-        pb.environment().put("PGPASSWORD", dbPassword);
-        pb.redirectErrorStream(true);
 
-        Process proc = pb.start();
+        runPsqlFromFile(file, name.endsWith(".gz"));
 
-        // На вход psql → распакованный файл
-        try (OutputStream stdin = proc.getOutputStream();
-             InputStream fileIn = Files.newInputStream(file);
-             InputStream in = name.endsWith(".gz")
-                     ? new GZIPInputStream(fileIn)
-                     : fileIn) {
-            in.transferTo(stdin);
-            stdin.flush();
-        }
-
-        // Логи
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(proc.getInputStream()))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                log.debug("[psql] {}", line);
-            }
-        }
-
-        int rc = proc.waitFor();
-        if (rc != 0) {
-            throw new IOException("psql завершился с кодом " + rc + ". Safety-backup: " + safety);
-        }
+        runPsqlCommand(
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO afina_app; " +
+            "GRANT SELECT ON ALL TABLES IN SCHEMA public TO afina_auditor; " +
+            "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_app; " +
+            "GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_auditor;"
+        );
 
         log.info("Database restored from {}. Safety-backup: {}", name, safety);
         return safety;
     }
 
-    // ===================== ВСПОМОГАТЕЛЬНОЕ =====================
+    private void runPsqlCommand(String sql) throws IOException, InterruptedException {
+        DbParams db = parseDbParams();
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql", "-h", db.host, "-p", String.valueOf(db.port),
+                "-U", dbUser, "-d", db.name,
+                "-v", "ON_ERROR_STOP=1", "-c", sql
+        );
+        pb.environment().put("PGPASSWORD", dbPassword);
+        runPsqlProcess(pb, "psql -c");
+    }
+
+    private void runPsqlFromFile(Path file, boolean gz) throws IOException, InterruptedException {
+        DbParams db = parseDbParams();
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql", "-h", db.host, "-p", String.valueOf(db.port),
+                "-U", dbUser, "-d", db.name,
+                "-v", "ON_ERROR_STOP=1", "--single-transaction"
+        );
+        pb.environment().put("PGPASSWORD", dbPassword);
+        Process proc = pb.start();
+
+        final StringBuilder stderrBuf = new StringBuilder();
+        Thread errThread = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(proc.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) stderrBuf.append(line).append("\n");
+            } catch (IOException ignored) {}
+        }, "psql-stderr");
+        errThread.setDaemon(true);
+        errThread.start();
+
+        try (OutputStream stdin = proc.getOutputStream();
+             InputStream fileIn = Files.newInputStream(file);
+             InputStream in = gz ? new GZIPInputStream(fileIn) : fileIn) {
+            in.transferTo(stdin);
+            stdin.flush();
+        }
+
+        int rc = proc.waitFor();
+        errThread.join(2000);
+        if (rc != 0) {
+            String err = stderrBuf.toString().trim();
+            log.error("psql restore stderr:\n{}", err);
+            throw new IOException("psql exit " + rc +
+                    (err.isEmpty() ? "" : ":\n" + err));
+        }
+        log.info("psql restore completed successfully");
+    }
+
+    private void runPsqlProcess(ProcessBuilder pb, String tag)
+            throws IOException, InterruptedException {
+        Process proc = pb.start();
+
+        final StringBuilder outBuf = new StringBuilder();
+        final StringBuilder errBuf = new StringBuilder();
+
+        Thread outThread = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) outBuf.append(line).append("\n");
+            } catch (IOException ignored) {}
+        }, tag + "-out");
+
+        Thread errThread = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(proc.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) errBuf.append(line).append("\n");
+            } catch (IOException ignored) {}
+        }, tag + "-err");
+
+        outThread.setDaemon(true);
+        errThread.setDaemon(true);
+        outThread.start();
+        errThread.start();
+
+        int rc = proc.waitFor();
+        outThread.join(2000);
+        errThread.join(2000);
+
+        String out = outBuf.toString().trim();
+        String err = errBuf.toString().trim();
+        if (!out.isEmpty()) log.debug("{} stdout:\n{}", tag, out);
+
+        if (rc != 0) {
+            log.error("{} exit {} stderr:\n{}", tag, rc, err);
+            throw new IOException(tag + " exit " + rc +
+                    (err.isEmpty() ? "" : ":\n" + err));
+        }
+    }
 
     private void terminateConnections() {
         try {
-            // Используем psql с inline-командой
             DbParams db = parseDbParams();
             ProcessBuilder pb = new ProcessBuilder(
-                    "psql",
-                    "-h", db.host,
-                    "-p", String.valueOf(db.port),
-                    "-U", dbUser,
-                    "-d", db.name,
-                    "-c",
+                    "psql", "-h", db.host, "-p", String.valueOf(db.port),
+                    "-U", dbUser, "-d", db.name, "-c",
                     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity " +
                     "WHERE datname = current_database() AND pid <> pg_backend_pid()"
             );
             pb.environment().put("PGPASSWORD", dbPassword);
-            pb.redirectErrorStream(true);
             Process p = pb.start();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 while (br.readLine() != null) { /* skip */ }
@@ -239,7 +293,6 @@ public class BackupService {
     }
 
     private DbParams parseDbParams() {
-        // jdbc:postgresql://host:port/db
         String u = dbUrl.replace("jdbc:postgresql://", "");
         int slash = u.indexOf('/');
         String hostPort = u.substring(0, slash);
