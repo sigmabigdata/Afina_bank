@@ -35,6 +35,12 @@ public class BackupService {
     @Value("${spring.flyway.password}")
     private String dbPassword;
 
+    @Value("${app.db-superuser:postgres}")
+    private String superUser;
+
+    @Value("${app.db-superuser-password:}")
+    private String superPassword;
+
     public record BackupFile(String name, long size, Instant createdAt, String sizePretty) {}
 
     public List<BackupFile> list() {
@@ -143,26 +149,45 @@ public class BackupService {
 
         log.warn("Restoring database from {}...", name);
 
+        // 1. Safety-бэкап текущего состояния (от migrator)
         String safety = create();
         log.info("Safety backup before restore: {}", safety);
 
+        // 2. Убиваем активные соединения
         terminateConnections();
         Thread.sleep(1000);
 
-        runPsqlCommand(
+        // 3. Сносим схему public — от superuser (иначе extensions и FK мешают)
+        runPsqlCommandAsSuperuser(
             "DROP SCHEMA public CASCADE; " +
             "CREATE SCHEMA public; " +
             "ALTER SCHEMA public OWNER TO afina_migrator; " +
             "GRANT USAGE ON SCHEMA public TO afina_app, afina_auditor;"
         );
 
-        runPsqlFromFile(file, name.endsWith(".gz"));
+        // 4. Заливаем дамп под superuser — чтобы CREATE EXTENSION работал
+        runPsqlFromFileAsSuperuser(file, name.endsWith(".gz"));
 
-        runPsqlCommand(
+        // 5. Возвращаем владельцев таблиц/последовательностей + права
+        runPsqlCommandAsSuperuser(
+            "DO $$ " +
+            "DECLARE r RECORD; " +
+            "BEGIN " +
+            "  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP " +
+            "    EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO afina_migrator'; " +
+            "  END LOOP; " +
+            "  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname='public' LOOP " +
+            "    EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO afina_migrator'; " +
+            "  END LOOP; " +
+            "END $$; " +
+            "GRANT ALL ON SCHEMA public TO afina_migrator; " +
+            "GRANT USAGE ON SCHEMA public TO afina_app, afina_auditor; " +
             "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO afina_app; " +
             "GRANT SELECT ON ALL TABLES IN SCHEMA public TO afina_auditor; " +
             "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_app; " +
-            "GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_auditor;"
+            "GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO afina_auditor; " +
+            "GRANT ALL ON flyway_schema_history TO afina_migrator; " +
+            "GRANT SELECT ON flyway_schema_history TO afina_app, afina_auditor;"
         );
 
         log.info("Database restored from {}. Safety-backup: {}", name, safety);

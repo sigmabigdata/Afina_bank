@@ -29,6 +29,8 @@ server:
     max-keep-alive-requests: 200
 
 app:
+  db-superuser: ${DB_SUPERUSER:app_user}
+  db-superuser-password: ${DB_SUPERUSER_PASSWORD:dev_password_change_me}
   storage-path: ${APP_STORAGE_PATH:./storage/documents}
   base-url: ${APP_BASE_URL:http://localhost:8080}
   admin-ip-whitelist: ${ADMIN_IP_WHITELIST:127.0.0.1,::1,0:0:0:0:0:0:0:1}

@@ -92,6 +92,8 @@ spring.lifecycle:
   timeout-per-shutdown-phase: 30s
 
 app:
+  db-superuser: ${DB_SUPERUSER:postgres}
+  db-superuser-password: ${DB_SUPERUSER_PASSWORD:}
   backups-path: /app/backups
   logs-path: /app/logs
   storage-path: ${APP_STORAGE_PATH}
