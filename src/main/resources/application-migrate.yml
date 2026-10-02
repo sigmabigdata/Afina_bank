@@ -1,9 +1,5 @@
 # Профиль для одноразовой миграции шифрования.
 # Активируется вместе с prod: SPRING_PROFILES_ACTIVE=prod,migrate
-spring:
-  main:
-    web-application-type: none
-    banner-mode: off
 logging:
   level:
     root: WARN
