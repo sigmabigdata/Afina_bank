@@ -38,6 +38,15 @@ public class Document {
 
     private String signerSerial;
 
+    @Column(name = "encryption_iv", length = 32)
+    private String encryptionIv;
+
+    @Column(name = "key_version", length = 20)
+    private String keyVersion;
+
+    @Column(nullable = false)
+    private boolean encrypted = false;
+
     @Column(nullable = false)
     private Instant uploadedAt = Instant.now();
 
@@ -60,6 +69,9 @@ public class Document {
     public Instant getSignedAt() { return signedAt; }
     public String getSignerSubject() { return signerSubject; }
     public String getSignerSerial() { return signerSerial; }
+    public String getEncryptionIv() { return encryptionIv; }
+    public String getKeyVersion() { return keyVersion; }
+    public boolean isEncrypted() { return encrypted; }
     public Instant getUploadedAt() { return uploadedAt; }
     public User getOwner() { return owner; }
     public List<DocumentSignature> getSignatures() { return signatures; }
@@ -76,6 +88,9 @@ public class Document {
     public void setSignedAt(Instant signedAt) { this.signedAt = signedAt; }
     public void setSignerSubject(String signerSubject) { this.signerSubject = signerSubject; }
     public void setSignerSerial(String signerSerial) { this.signerSerial = signerSerial; }
+    public void setEncryptionIv(String encryptionIv) { this.encryptionIv = encryptionIv; }
+    public void setKeyVersion(String keyVersion) { this.keyVersion = keyVersion; }
+    public void setEncrypted(boolean encrypted) { this.encrypted = encrypted; }
     public void setUploadedAt(Instant uploadedAt) { this.uploadedAt = uploadedAt; }
     public void setOwner(User owner) { this.owner = owner; }
     public void setSignatures(List<DocumentSignature> signatures) { this.signatures = signatures; }

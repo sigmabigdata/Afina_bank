@@ -31,3 +31,7 @@ cryptopro-dist/
 
 # Кэш
 .mvn/
+
+# Секреты (ключ шифрования файлов)
+secrets/
+*.key

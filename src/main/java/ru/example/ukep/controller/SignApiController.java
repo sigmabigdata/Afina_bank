@@ -62,7 +62,7 @@ public class SignApiController {
     private ResponseEntity<?> doAccept(Document doc, User owner, String sig) {
         try {
             Map<String, Object> result = signatureVerifier.verifyDetached(
-                    documentService.getPath(doc), sig);
+                    documentService.getBytes(doc), sig);
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));
             documentService.addSignature(doc.getId(), owner, sig, subject, serial);

@@ -58,6 +58,7 @@ services:
       ADMINS_FILE: /app/admins.env
       CRL_PATH: /app/kontur-q-2025.crl
       LOG_PATH: /var/log/afina/app.log
+      FILE_ENCRYPTION_KEY_PATH: /opt/afina/secrets/file.key
     volumes:
       - ./storage:/app/storage
       - ./logs:/var/log/afina
@@ -65,6 +66,7 @@ services:
       - ./backups:/app/backups
       - ./admins.env:/app/admins.env:ro
       - ./kontur-q-2025.crl:/app/kontur-q-2025.crl:ro
+      - ./secrets:/opt/afina/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

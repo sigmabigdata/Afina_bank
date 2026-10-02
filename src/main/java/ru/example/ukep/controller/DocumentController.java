@@ -103,7 +103,7 @@ public class DocumentController {
             return ResponseEntity.notFound().build();
         }
 
-        byte[] docBytes = java.nio.file.Files.readAllBytes(documentService.getPath(doc));
+        byte[] docBytes = documentService.getBytes(doc);
         byte[] sigBytes = Base64.getDecoder().decode(
                 doc.getSignatureBase64().replaceAll("\\s+", ""));
 

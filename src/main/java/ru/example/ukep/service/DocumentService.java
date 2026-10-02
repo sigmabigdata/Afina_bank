@@ -2,7 +2,6 @@ package ru.example.ukep.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,7 +12,6 @@ import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.DocumentSignatureRepository;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.*;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -26,13 +24,16 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final DocumentSignatureRepository signatureRepository;
+    private final FileEncryptor encryptor;
     private final Path storageRoot;
 
     public DocumentService(DocumentRepository documentRepository,
                            DocumentSignatureRepository signatureRepository,
+                           FileEncryptor encryptor,
                            @Value("${app.storage-path}") String storagePath) throws IOException {
         this.documentRepository = documentRepository;
         this.signatureRepository = signatureRepository;
+        this.encryptor = encryptor;
         this.storageRoot = Paths.get(storagePath).toAbsolutePath().normalize();
         Files.createDirectories(storageRoot);
     }
@@ -63,17 +64,24 @@ public class DocumentService {
     @Transactional
     public Document upload(MultipartFile file, User owner) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("Файл пустой");
-        String stored = UUID.randomUUID() + "_" + sanitize(file.getOriginalFilename());
-        Path target = storageRoot.resolve(stored);
-        try (InputStream is = file.getInputStream()) {
-            Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
-        }
+        byte[] original = file.getBytes();
+        FileEncryptor.Encrypted enc = encryptor.encrypt(original);
+
+        String baseName = UUID.randomUUID() + "_" + sanitize(file.getOriginalFilename());
+        String storedName = baseName + ".enc";
+        Path target = storageRoot.resolve(storedName);
+        Files.write(target, enc.bytes(),
+                StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+
         Document doc = new Document();
         doc.setOriginalName(file.getOriginalFilename());
-        doc.setStoredName(stored);
+        doc.setStoredName(storedName);
         doc.setContentType(file.getContentType());
-        doc.setSize(file.getSize());
-        doc.setFileSha256(sha256(target));
+        doc.setSize(original.length);
+        doc.setFileSha256(sha256Bytes(original));
+        doc.setEncryptionIv(enc.ivBase64());
+        doc.setKeyVersion("v1");
+        doc.setEncrypted(true);
         doc.setOwner(owner);
         doc.setUploadedAt(Instant.now());
         return documentRepository.save(doc);
@@ -86,11 +94,24 @@ public class DocumentService {
         documentRepository.delete(doc);
     }
 
-    public Resource loadAsResource(Document doc) throws IOException {
+    public byte[] getBytes(Document doc) throws IOException {
         Path p = storageRoot.resolve(doc.getStoredName());
-        return new UrlResource(p.toUri());
+        if (!Files.isRegularFile(p)) {
+            throw new IOException("Файл не найден на диске: " + doc.getStoredName());
+        }
+        byte[] raw = Files.readAllBytes(p);
+        if (!doc.isEncrypted()) return raw;
+        return encryptor.decrypt(raw);
     }
 
+    public Resource loadAsResource(Document doc) throws IOException {
+        byte[] data = getBytes(doc);
+        return new org.springframework.core.io.ByteArrayResource(data) {
+            @Override public String getFilename() { return doc.getOriginalName(); }
+        };
+    }
+
+    @Deprecated
     public Path getPath(Document doc) { return storageRoot.resolve(doc.getStoredName()); }
 
     /** Добавить новую подпись документу (неограниченное количество). */
@@ -159,15 +180,10 @@ public class DocumentService {
 
     private String sanitize(String n) { return n == null ? "file" : n.replaceAll("[^a-zA-Z0-9._-]", "_"); }
 
-    private String sha256(Path path) throws IOException {
+    private String sha256Bytes(byte[] data) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            try (InputStream is = Files.newInputStream(path)) {
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = is.read(buf)) > 0) md.update(buf, 0, n);
-            }
-            return HexFormat.of().formatHex(md.digest());
-        } catch (Exception e) { throw new IOException(e); }
+            return HexFormat.of().formatHex(md.digest(data));
+        } catch (Exception e) { throw new IllegalStateException(e); }
     }
 }

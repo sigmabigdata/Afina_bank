@@ -35,6 +35,7 @@ app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
   admin-ip-whitelist: ${ADMIN_IP_WHITELIST:127.0.0.1,::1,0:0:0:0:0:0:0:1}
   crl-path: ${CRL_PATH:./kontur-q-2025.crl}
+  file-encryption-key-path: ${FILE_ENCRYPTION_KEY_PATH:./secrets/file.key}
   admins-file: ${ADMINS_FILE:./admins.env}
   mail:
     mode: ${MAIL_MODE:log}
