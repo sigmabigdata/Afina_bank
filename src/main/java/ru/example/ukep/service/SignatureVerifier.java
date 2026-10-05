@@ -231,28 +231,48 @@ public class SignatureVerifier {
         return result;
     }
 
+    /**
+     * Загружает все *.crl из директории, дедуплицирует по issuer —
+     * оставляет только самый свежий (по thisUpdate) CRL для каждого CA.
+     */
     private Set<X509CRL> loadAllCrls() {
-        Set<X509CRL> result = new HashSet<>();
         if (!Files.isDirectory(crlsDir)) {
             log.warn("crls dir not found: {}", crlsDir);
-            return result;
+            return new HashSet<>();
         }
+
+        // issuer → самый свежий CRL
+        java.util.Map<String, X509CRL> byIssuer = new java.util.HashMap<>();
+        int total = 0, failed = 0;
+
         try (Stream<Path> stream = Files.list(crlsDir)) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            stream.filter(Files::isRegularFile)
-                  .filter(f -> f.getFileName().toString().endsWith(".crl"))
-                  .forEach(f -> {
-                      try (InputStream is = Files.newInputStream(f)) {
-                          result.add((X509CRL) cf.generateCRL(is));
-                      } catch (Exception e) {
-                          log.debug("CRL parse failed: {} — {}", f.getFileName(), e.getMessage());
-                      }
-                  });
+            java.util.List<Path> files = stream
+                    .filter(Files::isRegularFile)
+                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .sorted()
+                    .toList();
+            for (Path f : files) {
+                total++;
+                try (InputStream is = Files.newInputStream(f)) {
+                    X509CRL crl = (X509CRL) cf.generateCRL(is);
+                    String issuer = crl.getIssuerX500Principal().getName();
+                    X509CRL existing = byIssuer.get(issuer);
+                    if (existing == null || crl.getThisUpdate().after(existing.getThisUpdate())) {
+                        byIssuer.put(issuer, crl);
+                    }
+                } catch (Exception e) {
+                    failed++;
+                    log.debug("CRL parse failed: {} — {}", f.getFileName(), e.getMessage());
+                }
+            }
         } catch (Exception e) {
             log.error("loadAllCrls error", e);
         }
-        log.info("CRLs: {} loaded from {}", result.size(), crlsDir);
-        return result;
+
+        log.info("CRLs: {} файлов → {} уникальных issuer (failed={})",
+                total, byIssuer.size(), failed);
+        return new HashSet<>(byIssuer.values());
     }
 
     private List<X509Certificate> buildChain(X509Certificate leaf, CMSSignedData cms) throws Exception {
