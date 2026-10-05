@@ -26,19 +26,22 @@ if [ "${TLS_MODE:-letsencrypt}" = "custom" ]; then
     fi
     END_DATE=$(openssl x509 -in "$CERT_FILE" -noout -enddate | cut -d= -f2)
 else
-    # Let's Encrypt: сертификат в volume caddy_data
-    CERT_FILE=$(docker compose -f docker-compose-prod.yml --env-file .env.prod \
-        exec -T caddy sh -c \
-        "find /data/caddy/certificates -name '${DOMAIN}.crt' 2>/dev/null | head -1" 2>/dev/null || echo "")
+    # Let's Encrypt: сертификат в volume caddy_data.
+    # Ищем и читаем одним вызовом, чтобы путь не терялся между exec'ами.
+    END_DATE=$(docker compose -f docker-compose-prod.yml --env-file .env.prod \
+        exec -T caddy sh -c "
+            CERT=\$(find /data/caddy/certificates -type f -name '${DOMAIN}.crt' 2>/dev/null | head -1)
+            if [ -z \"\$CERT\" ]; then
+                echo 'CERT_NOT_FOUND'
+            else
+                openssl x509 -in \"\$CERT\" -noout -enddate
+            fi
+        " 2>/dev/null | cut -d= -f2 | tr -d '\r')
 
-    if [ -z "$CERT_FILE" ]; then
+    if [ "$END_DATE" = "CERT_NOT_FOUND" ] || [ -z "$END_DATE" ]; then
         echo "⚠ сертификат для $DOMAIN не найден в caddy_data (ещё не выпущен?)"
         exit 0
     fi
-
-    END_DATE=$(docker compose -f docker-compose-prod.yml --env-file .env.prod \
-        exec -T caddy sh -c "openssl x509 -in $CERT_FILE -noout -enddate" 2>/dev/null \
-        | cut -d= -f2 || echo "")
 fi
 
 if [ -z "$END_DATE" ]; then
