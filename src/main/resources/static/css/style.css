@@ -57,6 +57,23 @@ a:hover { text-decoration: underline; }
     color: #1f2430;
 }
 
+/* ================== Логотип-картинка ================== */
+.brand-logo {
+    height: 40px;
+    width: auto;
+    display: block;
+}
+.admin-header .brand-logo {
+    height: 38px;
+    filter: brightness(0) invert(1) brightness(0.9);
+}
+.auth-logo-img {
+    height: 72px;
+    width: auto;
+    display: block;
+    margin: 0 auto;
+}
+
 /* ================== Шапки ================== */
 header.app-header,
 header.admin-header {
