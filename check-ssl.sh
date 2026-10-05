@@ -18,34 +18,14 @@ if [ -z "$DOMAIN" ]; then
 fi
 
 # --- Получить срок действия ---
-if [ "${TLS_MODE:-letsencrypt}" = "custom" ]; then
-    CERT_FILE="caddy-certs/fullchain.pem"
-    if [ ! -f "$CERT_FILE" ]; then
-        echo "✗ TLS_MODE=custom, но $CERT_FILE отсутствует"
-        exit 2
-    fi
-    END_DATE=$(openssl x509 -in "$CERT_FILE" -noout -enddate | cut -d= -f2)
-else
-    # Let's Encrypt: сертификат в volume caddy_data.
-    # Ищем и читаем одним вызовом, чтобы путь не терялся между exec'ами.
-    END_DATE=$(docker compose -f docker-compose-prod.yml --env-file .env.prod \
-        exec -T caddy sh -c "
-            CERT=\$(find /data/caddy/certificates -type f -name '${DOMAIN}.crt' 2>/dev/null | head -1)
-            if [ -z \"\$CERT\" ]; then
-                echo 'CERT_NOT_FOUND'
-            else
-                openssl x509 -in \"\$CERT\" -noout -enddate
-            fi
-        " 2>/dev/null | cut -d= -f2 | tr -d '\r')
-
-    if [ "$END_DATE" = "CERT_NOT_FOUND" ] || [ -z "$END_DATE" ]; then
-        echo "⚠ сертификат для $DOMAIN не найден в caddy_data (ещё не выпущен?)"
-        exit 0
-    fi
-fi
+# Проверяем сертификат через openssl s_client (то, что реально отдаётся).
+# Внутри caddy:2-alpine openssl нет, поэтому проверяем с хоста по сети.
+END_DATE=$(echo | openssl s_client -connect "${DOMAIN}:443" -servername "${DOMAIN}" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
 
 if [ -z "$END_DATE" ]; then
-    echo "✗ не удалось прочитать дату истечения"
+    echo "✗ не удалось получить сертификат с ${DOMAIN}:443"
+    echo "   проверь: DNS указывает на этот сервер? порт 443 открыт?"
     exit 2
 fi
 
