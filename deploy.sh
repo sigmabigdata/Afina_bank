@@ -134,6 +134,16 @@ CRONEOF
 chmod 644 "$CRON"
 ok "Cron бэкапа: $CRON (ежедневно в 3:00)"
 
+CRON_SSL=/etc/cron.d/afina-ssl-check
+cat > "$CRON_SSL" <<CRONEOF
+# Афина: проверка срока SSL-сертификата (еженедельно, пн 9:00)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 9 * * 1 root cd $(pwd) && ./check-ssl.sh >> logs/ssl-check.log 2>&1
+CRONEOF
+chmod 644 "$CRON_SSL"
+ok "Cron SSL-проверки: $CRON_SSL (еженедельно, пн 9:00)"
+
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Развёртывание завершено${NC}"
