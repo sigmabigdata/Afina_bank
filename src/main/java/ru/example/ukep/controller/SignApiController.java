@@ -10,7 +10,7 @@ import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
 import ru.example.ukep.service.DocumentService;
-import ru.example.ukep.service.SignatureVerifier;
+import ru.example.ukep.service.SignatureService;
 
 import java.util.Map;
 
@@ -19,16 +19,16 @@ import java.util.Map;
 public class SignApiController {
 
     private final DocumentService documentService;
-    private final SignatureVerifier signatureVerifier;
+    private final SignatureService signatureService;
     private final UserRepository userRepository;
     private final DocumentRepository documentRepository;
 
     public SignApiController(DocumentService documentService,
-                             SignatureVerifier signatureVerifier,
+                             SignatureService signatureService,
                              UserRepository userRepository,
                              DocumentRepository documentRepository) {
         this.documentService = documentService;
-        this.signatureVerifier = signatureVerifier;
+        this.signatureService = signatureService;
         this.userRepository = userRepository;
         this.documentRepository = documentRepository;
     }
@@ -61,7 +61,7 @@ public class SignApiController {
 
     private ResponseEntity<?> doAccept(Document doc, User owner, String sig) {
         try {
-            Map<String, Object> result = signatureVerifier.verifyDetached(
+            Map<String, Object> result = signatureService.verifyDetached(
                     documentService.getBytes(doc), sig);
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));

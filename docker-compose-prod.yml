@@ -65,7 +65,7 @@ services:
       - ./logs:/app/logs
       - ./backups:/app/backups
       - ./admins.env:/app/admins.env:ro
-      - ./crls:/app/crls:ro
+      - ./crls:/app/crls
       - ./secrets:/opt/afina/secrets:ro
     depends_on:
       postgres:

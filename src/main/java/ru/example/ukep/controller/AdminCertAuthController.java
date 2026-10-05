@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.example.ukep.dto.CertLoginRequest;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.service.AdminCredentialsFileService;
-import ru.example.ukep.service.SignatureVerifier;
+import ru.example.ukep.service.SignatureService;
 import ru.example.ukep.service.UserService;
 
 import java.nio.charset.StandardCharsets;
@@ -34,7 +34,7 @@ public class AdminCertAuthController {
 
     private final AdminCredentialsFileService adminFile;
     private final UserService userService;
-    private final SignatureVerifier signatureVerifier;
+    private final SignatureService signatureService;
     private final HttpSessionSecurityContextRepository adminContextRepository;
 
     @Value("${app.crl-path:./kontur-q-2025.crl}")
@@ -45,12 +45,12 @@ public class AdminCertAuthController {
 
     public AdminCertAuthController(AdminCredentialsFileService adminFile,
                                    UserService userService,
-                                   SignatureVerifier signatureVerifier,
+                                   SignatureService signatureService,
                                    @Qualifier("adminContextRepository")
                                    HttpSessionSecurityContextRepository adminContextRepository) {
         this.adminFile = adminFile;
         this.userService = userService;
-        this.signatureVerifier = signatureVerifier;
+        this.signatureService = signatureService;
         this.adminContextRepository = adminContextRepository;
     }
 
@@ -98,10 +98,10 @@ public class AdminCertAuthController {
 
             // 3. Криптографическая проверка подписи челленджа
             byte[] challengeBytes = req.getChallenge().getBytes(StandardCharsets.UTF_8);
-            signatureVerifier.verifyDetached(challengeBytes, req.getSignatureBase64());
+            signatureService.verifyDetached(challengeBytes, req.getSignatureBase64());
 
             // 4. Сверяем CN в подписи с CN из admins.env
-            String signerCn = signatureVerifier.extractCnFromLastSignature();
+            String signerCn = signatureService.extractCnFromLastSignature();
             if (signerCn == null || !signerCn.equalsIgnoreCase(admin.get().cn())) {
                 log.warn("CN mismatch: signer='{}', expected='{}'", signerCn, admin.get().cn());
                 return ResponseEntity.status(403).body(

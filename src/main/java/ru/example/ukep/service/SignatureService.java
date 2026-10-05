@@ -27,6 +27,16 @@ import java.util.Set;
 @Service
 public class SignatureService {
 
+    private final CrlDownloader crlDownloader;
+    private final Path crlDirDefault;
+
+    public SignatureService(CrlDownloader crlDownloader,
+                            @org.springframework.beans.factory.annotation.Value("${app.crl-path:/app/crls}")
+                            String crlPath) {
+        this.crlDownloader = crlDownloader;
+        this.crlDirDefault = Path.of(crlPath);
+    }
+
     /** Кэш CN последней проверенной подписи (для синхронной логики verify→extract). */
     private final ThreadLocal<String> lastCn = new ThreadLocal<>();
 
@@ -49,6 +59,22 @@ public class SignatureService {
         return verifyInternal(data, signatureBase64, Path.of(crlPath));
     }
 
+    /**
+     * Удобный метод без явного пути к CRL. Берёт директорию из app.crl-path
+     * (по умолчанию /app/crls), автоматически подкачивает CRL по URL из
+     * сертификатов подписантов.
+     */
+    public Map<String, Object> verifyDetached(byte[] data, String signatureBase64)
+            throws Exception {
+        return verifyInternal(data, signatureBase64, null);
+    }
+
+    public Map<String, Object> verifyDetached(Path contentPath, String signatureBase64)
+            throws Exception {
+        byte[] data = Files.readAllBytes(contentPath);
+        return verifyInternal(data, signatureBase64, null);
+    }
+
     private Map<String, Object> verifyInternal(byte[] data,
                                                String signatureBase64,
                                                Path crlPath) throws Exception {
@@ -60,9 +86,24 @@ public class SignatureService {
         byte[] signatureBytes = Base64.getDecoder().decode(cleaned);
 
         CAdESSignature cades = new CAdESSignature(signatureBytes, data, CAdESType.CAdES_BES);
-        Set<X509CRL> crls = loadAllCrls(crlPath);
+
+        // 1) Доверенные корневые сертификаты (из /app/certs + Java cacerts)
         Set<X509Certificate> trusted = loadTrustedCerts();
 
+        // 2) Автозагрузка CRL по URL из сертификатов подписантов
+        try {
+            Set<X509Certificate> signerCerts = extractSignerCerts(cades);
+            if (!signerCerts.isEmpty()) {
+                crlDownloader.ensureCrlsFor(signerCerts);
+            }
+        } catch (Exception e) {
+            System.out.println("[SignatureService] CRL auto-download failed: " + e.getMessage());
+        }
+
+        // 3) Читаем все *.crl из директории (включая только что скачанные)
+        Set<X509CRL> crls = loadAllCrls(resolveCrlDir(crlPath));
+
+        // 4) Основная проверка: цепочка + CRL + срок действия
         cades.verify(trusted, crls);
 
         CAdESSigner[] signers = cades.getCAdESSignerInfos();
@@ -162,6 +203,29 @@ public class SignatureService {
                 .compile("CN=([^,]+)", java.util.regex.Pattern.CASE_INSENSITIVE)
                 .matcher(x500);
         return m.find() ? m.group(1).replace("\"", "").trim() : x500;
+    }
+
+    /**
+     * Извлекает сертификаты подписантов (для auto-download CRL по CDP).
+     */
+    private Set<X509Certificate> extractSignerCerts(CAdESSignature cades) {
+        Set<X509Certificate> result = new HashSet<>();
+        try {
+            CAdESSigner[] signers = cades.getCAdESSignerInfos();
+            for (CAdESSigner s : signers) {
+                X509Certificate cert = s.getSignerCertificate();
+                if (cert != null) result.add(cert);
+            }
+        } catch (Exception ignored) {}
+        return result;
+    }
+
+    /**
+     * Если явный crlPath не задан — используем app.crl-path (обычно /app/crls).
+     * Если задан — берём его (для обратной совместимости).
+     */
+    private Path resolveCrlDir(Path crlPath) {
+        return crlPath != null ? crlPath : crlDirDefault;
     }
 
     /**
