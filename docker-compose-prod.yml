@@ -56,7 +56,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-afina_db}
       APP_STORAGE_PATH: /app/storage/documents
       ADMINS_FILE: /app/admins.env
-      CRL_PATH: /app/kontur-q-2025.crl
+      CRL_DIR: /app/crls
       LOG_PATH: /var/log/afina/app.log
       FILE_ENCRYPTION_KEY_PATH: /opt/afina/secrets/file.key
     volumes:
@@ -65,7 +65,7 @@ services:
       - ./logs:/app/logs
       - ./backups:/app/backups
       - ./admins.env:/app/admins.env:ro
-      - ./kontur-q-2025.crl:/app/kontur-q-2025.crl:ro
+      - ./crls:/app/crls:ro
       - ./secrets:/opt/afina/secrets:ro
     depends_on:
       postgres:

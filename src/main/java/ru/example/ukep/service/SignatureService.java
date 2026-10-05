@@ -18,7 +18,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,7 +60,7 @@ public class SignatureService {
         byte[] signatureBytes = Base64.getDecoder().decode(cleaned);
 
         CAdESSignature cades = new CAdESSignature(signatureBytes, data, CAdESType.CAdES_BES);
-        Set<X509CRL> crls = loadCrl(crlPath);
+        Set<X509CRL> crls = loadAllCrls(crlPath);
         Set<X509Certificate> trusted = loadTrustedCerts();
 
         cades.verify(trusted, crls);
@@ -165,11 +164,33 @@ public class SignatureService {
         return m.find() ? m.group(1).replace("\"", "").trim() : x500;
     }
 
-    private Set<X509CRL> loadCrl(Path crlPath) throws Exception {
-        try (FileInputStream crlStream = new FileInputStream(crlPath.toFile())) {
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            X509CRL crl = (X509CRL) cf.generateCRL(crlStream);
-            return Collections.singleton(crl);
+    /**
+     * Читает все *.crl из каталога. Возвращает Set — если какой-то файл
+     * не парсится, он логируется как warning, но не валит всю проверку.
+     */
+    private Set<X509CRL> loadAllCrls(Path crlDir) {
+        Set<X509CRL> result = new HashSet<>();
+        if (crlDir == null || !Files.isDirectory(crlDir)) {
+            System.out.println("[SignatureService] CRL dir not found: " + crlDir);
+            return result;
         }
+        try {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            try (var files = Files.list(crlDir)) {
+                files.filter(f -> f.toString().endsWith(".crl"))
+                     .sorted()
+                     .forEach(f -> {
+                         try (var is = Files.newInputStream(f)) {
+                             result.add((X509CRL) cf.generateCRL(is));
+                         } catch (Exception e) {
+                             System.out.println("[SignatureService] CRL parse failed: "
+                                     + f.getFileName() + " — " + e.getMessage());
+                         }
+                     });
+            }
+        } catch (Exception e) {
+            System.out.println("[SignatureService] CRL dir read error: " + e.getMessage());
+        }
+        return result;
     }
 }
