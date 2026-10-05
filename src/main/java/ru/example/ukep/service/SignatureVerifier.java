@@ -54,12 +54,15 @@ public class SignatureVerifier {
     }
 
     private final ThreadLocal<String> lastCn = new ThreadLocal<>();
+    private final CrlDownloader crlDownloader;
     private final Path certsDir;
     private final Path crlsDir;
 
     public SignatureVerifier(
+            CrlDownloader crlDownloader,
             @Value("${app.certificates-path:/app/certs}") String certsPath,
             @Value("${app.crl-path:/app/crls}") String crlsPath) {
+        this.crlDownloader = crlDownloader;
         this.certsDir = Paths.get(certsPath);
         this.crlsDir = Paths.get(crlsPath);
         log.info("SignatureVerifier: certs={}, crls={}", certsDir, crlsDir);
@@ -82,6 +85,20 @@ public class SignatureVerifier {
         SignerInformationStore signers = cms.getSignerInfos();
 
         Set<X509Certificate> truststore = loadTrustedCerts();
+
+        // 0) Собрать все сертификаты подписантов + intermediates из CMS,
+        //    затем подкачать их CRL по CDP (идемпотентно, с TTL 12ч)
+        Set<X509Certificate> allSignerCerts = extractAllCerts(cms);
+        try {
+            int downloaded = crlDownloader.ensureCrlsFor(allSignerCerts);
+            if (downloaded > 0) {
+                log.info("CrlDownloader: подкачано/обновлено {} CRL", downloaded);
+            }
+        } catch (Exception e) {
+            log.warn("CrlDownloader failed: {}", e.getMessage());
+        }
+
+        // Теперь читаем CRL из директории (там уже и свежескачанные)
         Set<X509CRL> crls = loadAllCrls();
 
         Map<String, Object> result = new HashMap<>();
@@ -103,7 +120,8 @@ public class SignatureVerifier {
 
             // 3) Построение цепочки (вручную)
             List<X509Certificate> chain = buildChain(leaf, cms);
-            log.debug("Chain built: {} certificates", chain.size());
+            log.info("Chain built: {} certificates (leaf={})", chain.size(),
+                    leaf.getSubjectX500Principal());
 
             // 4) Проверка корня в truststore
             X509Certificate root = chain.get(chain.size() - 1);
@@ -164,6 +182,19 @@ public class SignatureVerifier {
         } catch (Exception jcspError) {
             throw new RuntimeException("Ошибка проверки подписи: " + jcspError.getMessage(), jcspError);
         }
+    }
+
+    /** Извлекает все встроенные сертификаты из CMS (лист + промежуточные). */
+    private Set<X509Certificate> extractAllCerts(CMSSignedData cms) {
+        Set<X509Certificate> result = new HashSet<>();
+        Store<X509CertificateHolder> store = cms.getCertificates();
+        for (X509CertificateHolder holder : store.getMatches(null)) {
+            try {
+                result.add(new JcaX509CertificateConverter().setProvider("BC")
+                        .getCertificate(holder));
+            } catch (Exception ignored) {}
+        }
+        return result;
     }
 
     private X509Certificate getSignerCert(SignerInformation signer, CMSSignedData cms) throws Exception {
