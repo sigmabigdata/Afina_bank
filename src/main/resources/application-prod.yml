@@ -99,7 +99,7 @@ app:
   storage-path: ${APP_STORAGE_PATH}
   base-url: ${APP_BASE_URL}
   admin-ip-whitelist: ${ADMIN_IP_WHITELIST}
-  crl-path: ${CRL_PATH}
+  crl-path: ${CRL_DIR:/app/crls}
   admins-file: ${ADMINS_FILE}
   mail:
     mode: smtp
