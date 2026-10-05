@@ -531,3 +531,105 @@ macOS:
 
 - [CRL-SETUP.md](CRL-SETUP.md) — управление CRL (списки отзыва сертификатов)
 - [TECHNICAL.md](TECHNICAL.md) — техническая документация (архитектура, API)
+
+---
+
+## Свой SSL-сертификат (TLS_MODE=custom)
+
+По умолчанию Caddy сам выпускает Let's Encrypt. Если у вас уже есть
+свой сертификат (Wildcard от Comodo, корпоративный CA, самоподписанный
+для внутренней сети) — можно переключиться на режим `custom`.
+
+### Как переключиться
+
+1. **Положить сертификаты** в `/opt/afina/caddy-certs/`:
+
+       fullchain.pem   # полная цепочка: сертификат + промежуточные CA
+       privkey.pem     # приватный ключ
+
+   Права:
+
+       chmod 644 caddy-certs/fullchain.pem
+       chmod 600 caddy-certs/privkey.pem
+       chown root:root caddy-certs/*.pem
+
+2. **В `.env.prod`** изменить:
+
+       TLS_MODE=custom
+
+3. **Перезапустить Caddy:**
+
+       cd /opt/afina
+       docker compose -f docker-compose-prod.yml --env-file .env.prod up -d caddy
+
+4. **Проверить:**
+
+       curl -sI https://ваш-домен/actuator/health | head -1
+       # HTTP/2 200
+
+       ./check-ssl.sh
+       # Domain:    ваш-домен
+       # TLS mode:  custom
+       # Expires:   ...
+       # Days left: ...
+       # ✓ ок
+
+### Что важно
+
+- **Caddy не обновляет ваш сертификат.** Когда он истечёт — сайт
+  упадёт. `check-ssl.sh` предупредит за 14 дней.
+- **Let's Encrypt полностью отключается** для этого домена, как только
+  в блоке появилась директива `tls`. Автоматический ACME-челлендж
+  запускаться не будет.
+- **Порт 80 всё ещё нужен** для редиректа HTTP→HTTPS и ACME (если
+  когда-то захотите вернуться к LE).
+- **Приватный ключ** `privkey.pem` — критичный файл. Бэкапьте его
+  отдельно (1Password, сейф). Утечка ключа = компрометация SSL.
+
+### Проверка валидности цепочки
+
+Если браузер жалуется на неполную цепочку:
+
+    openssl s_client -connect ваш-домен:443 -servername ваш-домен
+    # В конце должно быть "Verify return code: 0 (ok)"
+
+Если `unable to get local issuer certificate` — в `fullchain.pem`
+не хватает промежуточных сертификатов. Соберите полную цепочку:
+
+    cat server.crt intermediate.crt > fullchain.pem
+
+### Возврат на Let's Encrypt
+
+1. В `.env.prod`: `TLS_MODE=letsencrypt`
+2. Перезапустить:
+
+       docker compose -f docker-compose-prod.yml --env-file .env.prod up -d caddy
+
+Caddy снова начнёт автоматически выпускать сертификаты.
+
+### Обновление сертификата (для custom)
+
+Когда придёт время обновлять (например, раз в год):
+
+1. Получить новый `fullchain.pem` и `privkey.pem` от CA
+2. Заменить файлы в `caddy-certs/`
+3. Проверить права (`600` на ключ)
+4. Перезагрузить Caddy **без перезапуска контейнера**:
+
+       docker compose -f docker-compose-prod.yml --env-file .env.prod \
+         exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+Или (если reload не сработал):
+
+       docker compose -f docker-compose-prod.yml --env-file .env.prod restart caddy
+
+5. Проверить:
+
+       ./check-ssl.sh
+       curl -sI https://ваш-домен/actuator/health | head -1
+
+### Что НЕ надо менять
+
+- Caddyfile — он шаблонный, ничего править в нём не нужно
+- docker-compose — уже настроен (volume `./caddy-certs:/certs:ro`)
+- Приложение — оно за Caddy и не знает про SSL
