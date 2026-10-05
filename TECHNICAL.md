@@ -15,8 +15,9 @@
 6. [Модель ролей БД](#модель-ролей-бд)
 7. [Схема БД](#схема-бд)
 8. [Криптография УКЭП](#криптография-укэп)
-9. [API](#api)
-10. [Эксплуатация](#эксплуатация)
+9. [Управление CRL](#управление-crl)
+10. [API](#api)
+11. [Эксплуатация](#эксплуатация)
 
 ---
 
@@ -549,6 +550,79 @@ IV дублируется в БД (`documents.encryption_iv`, base64) для
 Если `valid=false` — показывается ошибка, подпись не сохраняется.
 
 ---
+
+## Управление CRL
+
+### Архитектура
+
+CRL хранятся в каталоге `/app/crls/` внутри контейнера (монтируется из
+`/opt/afina/crls/`). `SignatureService.loadAllCrls()` читает **все**
+`*.crl` из каталога при каждой проверке подписи. Парсинг — через
+`CertificateFactory.getInstance("X.509").generateCRL()`.
+
+Один битый файл не валит всю проверку — логируется warning и
+пропускается.
+
+### Источники CRL
+
+| Источник | Как попадает |
+|---|---|
+| Ручная загрузка | `scp file.crl afina-vps:/opt/afina/crls/` |
+| `update-crls.sh` | Cron каждые 6 часов |
+| JCSP (autofetch) | По URL из AIA-расширения сертификата (если включены системные свойства) |
+
+Формат `crl-sources.conf`:
+
+    <имя_файла>|<URL>
+
+Пример:
+
+    kontur-q-2025.crl|http://crl.kontur.ru/file.crl
+
+### Скрипт update-crls.sh
+
+- Читает `crl-sources.conf`
+- Скачивает каждый URL через `curl --max-time 30`
+- Атомарная замена: сначала во временный файл, потом `mv` (никогда
+  не оставит половинчатый файл)
+- Идемпотентно: `cmp -s` — если файл не изменился, не перезаписывает
+- Exit 1 при ошибках (cron запишет в лог)
+
+Запуск:
+
+    cd /opt/afina
+    ./update-crls.sh
+
+### Скрипт extract-crl-urls.sh
+
+Принимает `.cer`/`.pem`/`.crt` (PEM или DER), извлекает:
+
+- Subject
+- Issuer
+- CRL Distribution Points (URL)
+- Authority Information Access (OCSP URL)
+- Subject/Authority Key Identifier
+
+Использует `openssl x509 -text` и awk-разбор. Нужен, чтобы **не
+угадывать** URL CRL — они берутся только из сертификата клиента.
+
+### Системные свойства JVM
+
+В `CryptoProInitializer` устанавливаются:
+
+    com.sun.security.enableCRLDP=true
+    com.ibm.security.enableCRLDP=true
+    ocsp.enable=true
+    com.sun.security.enableAIAcaIssuers=true
+    ru.CryptoPro.reprov.enableAIAcaIssuers=true
+    ru.CryptoPro.reprov.enableCRLDP=true
+
+Без этих свойств CAdES падает с `Could not determine revocation status`.
+
+### Ссылки
+
+- [CRL-SETUP.md](CRL-SETUP.md) — пользовательская инструкция по CRL
+- RFC 5280: https://datatracker.ietf.org/doc/html/rfc5280
 
 ## API
 
