@@ -135,7 +135,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/login", "/login/confirm", "/error",
                                  "/actuator/health", "/actuator/info",
                                  "/ping",
-                                 "/css/**", "/js/**", "/favicon.ico",
+                                 "/css/**", "/js/**", "/img/**", "/favicon.ico",
                                  "/h2-console/**").permitAll()
                 .anyRequest().authenticated())
             .formLogin(f -> f.disable())
