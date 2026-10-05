@@ -1,8 +1,9 @@
-afinasystems.ru {
+{$APP_DOMAIN} {
     encode gzip
+    {$TLS_DIRECTIVE}
     reverse_proxy app:8080
 }
 
-www.afinasystems.ru {
-    redir https://afinasystems.ru{uri} permanent
+www.{$APP_DOMAIN} {
+    redir https://{$APP_DOMAIN}{uri} permanent
 }

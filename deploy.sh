@@ -31,6 +31,24 @@ log "0/8 — Проверка окружения"
 [ "$(uname -m)" = "x86_64" ] || err "Требуется x86_64 (CryptoPro не соберётся на ARM)"
 ok "Окружение готово"
 
+# ----- TLS: letsencrypt или custom -----
+set -a
+# shellcheck disable=SC1091
+source .env.prod
+set +a
+
+if [ "${TLS_MODE:-letsencrypt}" = "custom" ]; then
+    [ -f caddy-certs/fullchain.pem ] || err "TLS_MODE=custom, но caddy-certs/fullchain.pem не найден"
+    [ -f caddy-certs/privkey.pem ]   || err "TLS_MODE=custom, но caddy-certs/privkey.pem не найден"
+    chmod 644 caddy-certs/fullchain.pem
+    chmod 600 caddy-certs/privkey.pem
+    export TLS_DIRECTIVE="tls /certs/fullchain.pem /certs/privkey.pem"
+    ok "TLS: свой сертификат (custom)"
+else
+    export TLS_DIRECTIVE=""
+    ok "TLS: Let's Encrypt (letsencrypt)"
+fi
+
 # ----- 1. Обновление системы -----
 log "1/8 — apt update && upgrade"
 export DEBIAN_FRONTEND=noninteractive

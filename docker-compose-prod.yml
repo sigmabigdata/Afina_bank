@@ -83,11 +83,15 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: afina-caddy
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      TLS_DIRECTIVE: ${TLS_DIRECTIVE:-}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -35,3 +35,8 @@ cryptopro-dist/
 # Секреты (ключ шифрования файлов)
 secrets/
 *.key
+
+# Клиентские SSL-сертификаты
+caddy-certs/*.pem
+caddy-certs/*.key
+caddy-certs/*.crt
