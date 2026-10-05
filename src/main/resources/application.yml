@@ -40,6 +40,7 @@ app:
   mail:
     mode: ${MAIL_MODE:log}
     from: ${MAIL_FROM:noreply@example.com}
+    from-name: ${MAIL_FROM_NAME:Афина}
 
 logging:
   level:

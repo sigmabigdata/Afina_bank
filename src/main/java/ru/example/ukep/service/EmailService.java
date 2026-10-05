@@ -23,12 +23,15 @@ public class EmailService {
     @Value("${app.mail.from:noreply@example.com}")
     private String from;
 
+    @Value("${app.mail.from-name:Афина}")
+    private String fromName;
+
     public EmailService(ObjectProvider<JavaMailSender> mailSenderProvider) {
         this.mailSenderProvider = mailSenderProvider;
     }
 
     public void sendLoginLink(String to, String loginUrl) {
-        String subject = "УКЭП Сервис · Ссылка для входа";
+        String subject = "Афина · Ссылка для входа";
         String body = """
                 Здравствуйте!
 
@@ -37,6 +40,9 @@ public class EmailService {
 
                 Ссылка действует 10 часов и может быть использована только один раз.
                 Если вы не запрашивали вход — просто проигнорируйте это письмо.
+
+                С уважением,
+                сервис «Афина»
                 """.formatted(loginUrl);
 
         JavaMailSender sender = mailSenderProvider.getIfAvailable();
@@ -58,7 +64,7 @@ public class EmailService {
         try {
             MimeMessage msg = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
-            helper.setFrom(from);
+            helper.setFrom(from, fromName);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(body, false);
