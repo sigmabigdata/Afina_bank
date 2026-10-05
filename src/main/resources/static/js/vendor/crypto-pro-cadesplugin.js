@@ -1306,7 +1306,7 @@ CertificatesApi.signBase64 = async function signBase64(thumbprint, base64, type 
 		await oSignedData.propset_ContentEncoding(CADESCOM_BASE64_TO_BINARY);
 		await oSignedData.propset_Content(base64);
 		await oSigner.propset_Certificate(currentCert);
-		await oSigner.propset_Options(CAPICOM_CERTIFICATE_INCLUDE_WHOLE_CHAIN);
+		await oSigner.propset_Options(CAPICOM.CAPICOM_CERTIFICATE_INCLUDE_WHOLE_CHAIN);
 		return await oSignedData.SignCades(oSigner, CADESCOM_CADES_BES, type);
 	} catch (error) {
 		throw new Error(error.message);
