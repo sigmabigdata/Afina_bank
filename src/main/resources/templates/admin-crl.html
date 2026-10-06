@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Афина · Админ · CRL</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/monitor}">Мониторинг</a>
+        <a th:href="@{/admin/crl}" class="active">CRL</a>
+        <a th:href="@{/admin/settings}">Настройки</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <div class="sys-head">
+        <h1>Списки отзыва сертификатов (CRL)</h1>
+    </div>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <div class="alert info">
+        <b>Автоматическая загрузка:</b> при подписании документа сервис
+        извлекает URL CRL (CDP) из сертификатов подписантов и качает их в
+        <code th:text="${crlsDir}">/app/crls</code>.
+        Файлы <code>auto-*.crl</code> — автоматические,
+        остальные — загружены вручную администратором.
+    </div>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 style="margin:0">Загрузить CRL вручную</h2>
+        </div>
+        <form method="post" th:action="@{/admin/crl/upload}"
+              enctype="multipart/form-data"
+              style="display:flex; gap:10px; align-items:center;">
+            <input type="file" name="file" required accept=".crl"/>
+            <button type="submit">Загрузить</button>
+        </form>
+        <p class="muted small" style="margin-top:8px;">
+            Файл должен быть в формате X.509 CRL (DER или PEM).
+            Скопируйте файл с сайта вашего УЦ.
+        </p>
+    </section>
+
+    <section class="panel">
+        <h2>Загруженные CRL</h2>
+
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Файл</th>
+                <th>Тип</th>
+                <th>Издатель</th>
+                <th>Обновлён</th>
+                <th>Истекает</th>
+                <th>Дней</th>
+                <th>Размер</th>
+                <th style="width:60px"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${crls}">
+                <td>
+                    <code th:text="${c.fileName}">file.crl</code>
+                </td>
+                <td>
+                    <span th:if="${c.manual}" class="badge">вручную</span>
+                    <span th:unless="${c.manual}" class="badge admin">авто</span>
+                </td>
+                <td class="muted small" th:text="${c.issuer}">—</td>
+                <td class="small"
+                    th:text="${c.lastUpdate != null ? T(ru.example.ukep.service.CrlService).formatInstant(c.lastUpdate) : '—'}">—</td>
+                <td class="small"
+                    th:text="${c.nextUpdate != null ? T(ru.example.ukep.service.CrlService).formatInstant(c.nextUpdate) : '—'}">—</td>
+                <td>
+                    <span th:if="${c.daysToExpiry >= 7}" class="badge ok"
+                          th:text="${c.daysToExpiry} + 'д'">0д</span>
+                    <span th:if="${c.daysToExpiry >= 0 and c.daysToExpiry < 7}"
+                          class="badge warn"
+                          th:text="${c.daysToExpiry} + 'д'">0д</span>
+                    <span th:if="${c.daysToExpiry < 0}" class="badge err">истёк</span>
+                </td>
+                <td class="muted small" th:text="${c.sizePretty}">0 KB</td>
+                <td>
+                    <form method="post"
+                          th:action="@{'/admin/crl/' + ${c.fileName} + '/delete'}"
+                          onsubmit="return confirm('Удалить ' + this.dataset.n + '?');"
+                          th:attr="data-n=${c.fileName}"
+                          style="display:inline">
+                        <button type="submit" class="link danger" title="Удалить">🗑</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(crls)}">
+                <td colspan="8" class="muted center">
+                    CRL пока нет. Загрузите вручную выше, или они появятся автоматически
+                    при следующем подписании документа (если сертификат содержит CDP URL).
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>
