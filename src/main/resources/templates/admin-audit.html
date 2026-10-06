@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Афина · Админ · Аудит</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/monitor}">Мониторинг</a>
+        <a th:href="@{/admin/crl}">CRL</a>
+        <a th:href="@{/admin/audit}" class="active">Аудит</a>
+        <a th:href="@{/admin/settings}">Настройки</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <h1>Журнал аудита</h1>
+
+    <form method="get" th:action="@{/admin/audit}" class="filters-form">
+        <select name="type">
+            <option value="">— Все типы —</option>
+            <option th:each="t : ${eventTypes}" th:value="${t}" th:text="${t}"
+                    th:selected="${t == type}">EVENT</option>
+        </select>
+
+        <input type="text" name="actor" th:value="${actor}"
+               placeholder="Актор (email, CN)"/>
+
+        <select name="result">
+            <option value="" th:selected="${result == ''}">Все результаты</option>
+            <option value="SUCCESS" th:selected="${result == 'SUCCESS'}">SUCCESS</option>
+            <option value="FAIL" th:selected="${result == 'FAIL'}">FAIL</option>
+            <option value="WARN" th:selected="${result == 'WARN'}">WARN</option>
+        </select>
+
+        <input type="date" name="from" th:value="${from}"/>
+        <input type="date" name="to" th:value="${to}"/>
+        <input type="number" name="limit" th:value="${limit}" min="10" max="2000"
+               style="width:100px" title="Строк"/>
+
+        <button type="submit">Применить</button>
+        <a th:href="@{/admin/audit}" class="btn-ghost">Сбросить</a>
+        <a th:href="@{/admin/audit/export.csv(type=${type},actor=${actor},result=${result},from=${from},to=${to})}"
+           class="btn">⬇ CSV</a>
+    </form>
+
+    <table class="docs">
+        <thead>
+        <tr>
+            <th>Время</th>
+            <th>Событие</th>
+            <th>Результат</th>
+            <th>Актор</th>
+            <th>IP</th>
+            <th>Объект</th>
+            <th>Детали</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="e : ${events}">
+            <td class="small"
+                th:text="${#temporals.format(e.eventTime,'dd.MM.yy HH:mm:ss')}">—</td>
+            <td><code th:text="${e.eventType}">EVENT</code></td>
+            <td>
+                <span th:if="${e.result == 'SUCCESS'}" class="badge ok">SUCCESS</span>
+                <span th:if="${e.result == 'FAIL'}" class="badge err">FAIL</span>
+                <span th:if="${e.result == 'WARN'}" class="badge warn">WARN</span>
+            </td>
+            <td class="small">
+                <span th:text="${e.actorEmail} ?: '—'">—</span>
+                <span th:if="${e.actorRole != null}" class="muted"
+                      th:text="' (' + ${e.actorRole} + ')'"></span>
+            </td>
+            <td class="small muted" th:text="${e.actorIp} ?: '—'">—</td>
+            <td class="small">
+                <span th:if="${e.targetType != null}" th:text="${e.targetType}">—</span>
+                <span th:if="${e.targetId != null}"
+                      th:text="' #' + ${e.targetId}">—</span>
+                <div class="muted" th:text="${e.targetInfo} ?: ''"></div>
+            </td>
+            <td class="small muted" th:text="${e.details} ?: '—'">—</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(events)}">
+            <td colspan="7" class="muted center">Событий по фильтру нет</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>
