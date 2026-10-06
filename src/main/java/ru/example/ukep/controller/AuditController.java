@@ -49,17 +49,18 @@ public class AuditController {
     public String page(@RequestParam(required = false) String type,
                        @RequestParam(required = false) String actor,
                        @RequestParam(required = false) String result,
-                       @RequestParam(required = false)
-                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                       @RequestParam(required = false)
-                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                       @RequestParam(name = "from", required = false) String fromStr,
+                       @RequestParam(name = "to", required = false) String toStr,
                        @RequestParam(defaultValue = "200") int limit,
                        Model model) {
 
         int safeLimit = Math.min(Math.max(limit, 10), 2000);
 
-        log.info("audit filter: type='{}' actor='{}' result='{}' from={} to={}",
-                type, actor, result, from, to);
+        LocalDate from = parseDate(fromStr);
+        LocalDate to = parseDate(toStr);
+
+        log.info("audit filter: type='{}' actor='{}' result='{}' from='{}'->{} to='{}'->{}",
+                type, actor, result, fromStr, from, toStr, to);
         List<AuditEvent> filtered = filterInMemory(type, actor, result, from, to);
         List<AuditEvent> page = filtered.stream().limit(safeLimit).toList();
 
@@ -80,11 +81,12 @@ public class AuditController {
     public void exportCsv(@RequestParam(required = false) String type,
                           @RequestParam(required = false) String actor,
                           @RequestParam(required = false) String result,
-                          @RequestParam(required = false)
-                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                          @RequestParam(required = false)
-                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                          @RequestParam(name = "from", required = false) String fromStr,
+                          @RequestParam(name = "to", required = false) String toStr,
                           HttpServletResponse resp) throws Exception {
+
+        LocalDate from = parseDate(fromStr);
+        LocalDate to = parseDate(toStr);
 
         List<AuditEvent> events = filterInMemory(type, actor, result, from, to);
 
@@ -169,6 +171,17 @@ public class AuditController {
                 auth != null ? auth.getName() : "admin");
         ra.addFlashAttribute("ok", "Retention: " + days + " дней");
         return "redirect:/admin/audit";
+    }
+
+    /** Парсит дату из query param (ISO format: yyyy-MM-dd). */
+    private LocalDate parseDate(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return LocalDate.parse(s.trim());
+        } catch (Exception e) {
+            log.warn("Не удалось распарсить дату '{}': {}", s, e.getMessage());
+            return null;
+        }
     }
 
     private static String csv(String s) {
