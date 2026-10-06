@@ -81,10 +81,23 @@ public class AdminController {
         else if ("pending".equalsIgnoreCase(status)) ef = false;
 
         String qNorm = (q == null || q.isBlank()) ? null : q.trim().toLowerCase();
-        String pattern = (qNorm == null) ? null : "%" + qNorm + "%";
+        String qHash = (qNorm == null) ? null : pii.hash(qNorm);
 
-        model.addAttribute("users", userRepository.searchForAdmin(ef, null, pattern,
-                qNorm == null ? null : pii.hash(qNorm)));
+        // Фильтрация в памяти (SQL-поиск с шифрованием PII ненадёжен)
+        final Boolean efFinal = ef;
+        final String qFinal = qNorm;
+        final String hashFinal = qHash;
+
+        java.util.List<User> users = userRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .filter(u -> efFinal == null || u.isEnabled() == efFinal)
+                .filter(u -> qFinal == null
+                        || (u.getFullName() != null
+                            && u.getFullName().toLowerCase().contains(qFinal))
+                        || (hashFinal != null && hashFinal.equals(u.getEmailHash())))
+                .toList();
+
+        model.addAttribute("users", users);
         model.addAttribute("status", status == null ? "" : status);
         model.addAttribute("q", qNorm == null ? "" : qNorm);
         return "admin-users";
