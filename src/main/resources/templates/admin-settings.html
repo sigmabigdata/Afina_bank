@@ -146,15 +146,14 @@
 
         <div class="form-field">
             <label>
-                <b>From (отправитель)</b>
-                <span class="muted">— адрес, от чьего имени уходит письмо.
-                Должен быть на домене SMTP-сервера. Пусто → из .env.prod</span>
+                <b>From (отправитель) — только из .env.prod</b>
             </label>
-            <input type="email" name="smtpFrom" th:value="${smtpFrom}"
-                   th:placeholder="${envMailFrom} ?: 'noreply@afinasystems.ru'"/>
+            <input type="email" th:value="${envMailFrom}" disabled
+                   style="background:#f1f5f9; cursor:not-allowed;"/>
             <div class="hint">
-                ⚠️ <b>Не вводи здесь адрес получателя.</b> Получатель указывается
-                при отправке (в форме ниже или в карточке клиента).
+                Поле задано переменной <code>MAIL_FROM</code> в <code>.env.prod</code>.
+                Изменить можно только на сервере. <b>Получателя</b> указывайте
+                в форме «Проверка SMTP» ниже или в карточке клиента.
             </div>
         </div>
 

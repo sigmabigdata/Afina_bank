@@ -53,7 +53,7 @@ public class SettingsController {
         model.addAttribute("smtpHost", settings.getOrDefault("smtp.host", ""));
         model.addAttribute("smtpPort", settings.getOrDefault("smtp.port", "465"));
         model.addAttribute("smtpUsername", settings.getOrDefault("smtp.username", ""));
-        model.addAttribute("smtpFrom", settings.getOrDefault("smtp.from", ""));
+        // smtp.from убран из UI — From задаётся только через .env.prod
         model.addAttribute("smtpSsl", settings.getBoolOrDefault("smtp.ssl", true));
         boolean hasPassword = !settings.getOrDefault("smtp.password", "").isBlank();
         model.addAttribute("smtpHasPassword", hasPassword);
@@ -77,7 +77,6 @@ public class SettingsController {
                        @RequestParam(required = false) String smtpPort,
                        @RequestParam(required = false) String smtpUsername,
                        @RequestParam(required = false) String smtpPassword,
-                       @RequestParam(required = false) String smtpFrom,
                        @RequestParam(required = false) String smtpSsl,
                        Authentication auth,
                        RedirectAttributes ra) {
@@ -96,7 +95,6 @@ public class SettingsController {
             settings.set("smtp.host", smtpHost == null ? "" : smtpHost.trim(), who);
             settings.set("smtp.port", smtpPort == null ? "465" : smtpPort.trim(), who);
             settings.set("smtp.username", smtpUsername == null ? "" : smtpUsername.trim(), who);
-            settings.set("smtp.from", smtpFrom == null ? "" : smtpFrom.trim(), who);
             settings.set("smtp.ssl", smtpSsl != null ? "true" : "false", who);
 
             // Пароль — только если введён новый (не пустая строка)
@@ -122,7 +120,6 @@ public class SettingsController {
             settings.set("smtp.port", "465", who);
             settings.set("smtp.username", "", who);
             settings.set("smtp.password", "", who);
-            settings.set("smtp.from", "", who);
             settings.set("smtp.ssl", "true", who);
             audit.settingsUpdate(who, "smtp-reset-to-env");
             ra.addFlashAttribute("ok", "SMTP-настройки сброшены к .env.prod");
