@@ -23,7 +23,7 @@ COMMENT ON COLUMN users.phone_hash IS 'SHA-256 от digits(phone) — для exa
 CREATE UNIQUE INDEX idx_users_email_hash ON users (email_hash) WHERE email_hash IS NOT NULL;
 CREATE INDEX idx_users_phone_hash ON users (phone_hash) WHERE phone_hash IS NOT NULL;
 
--- Дроп старого unique-индекса на email (если есть)
-DROP INDEX IF EXISTS users_email_key;
+-- Дроп старого unique constraint на email (если есть)
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
 
 GRANT SELECT (email_enc, email_hash, phone_enc, phone_hash) ON users TO afina_auditor;
