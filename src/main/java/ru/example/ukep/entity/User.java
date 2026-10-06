@@ -12,13 +12,23 @@ public class User {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    // email: в БД хранится в email_enc (AES-GCM), прозрачно шифруется через @Convert
+    @Column(name = "email_enc", length = 500)
+    @Convert(converter = ru.example.ukep.security.PiiStringConverter.class)
     private String email;
+
+    @Column(name = "email_hash", length = 64)
+    private String emailHash;
 
     @Column(nullable = false)
     private String fullName;
 
+    @Column(name = "phone_enc", length = 500)
+    @Convert(converter = ru.example.ukep.security.PiiStringConverter.class)
     private String phone;
+
+    @Column(name = "phone_hash", length = 64)
+    private String phoneHash;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -40,6 +50,8 @@ public class User {
 
     public Long getId() { return id; }
     public String getEmail() { return email; }
+    public String getEmailHash() { return emailHash; }
+    public String getPhoneHash() { return phoneHash; }
     public String getFullName() { return fullName; }
     public String getPhone() { return phone; }
     public Role getRole() { return role; }
@@ -53,6 +65,8 @@ public class User {
 
     public void setId(Long id) { this.id = id; }
     public void setEmail(String email) { this.email = email; }
+    public void setEmailHash(String emailHash) { this.emailHash = emailHash; }
+    public void setPhoneHash(String phoneHash) { this.phoneHash = phoneHash; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setPhone(String phone) { this.phone = phone; }
     public void setRole(Role role) { this.role = role; }

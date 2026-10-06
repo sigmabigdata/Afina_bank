@@ -13,6 +13,7 @@ import ru.example.ukep.entity.Role;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
+import ru.example.ukep.security.PiiEncryptor;
 import ru.example.ukep.service.DocumentService;
 import ru.example.ukep.service.EmailService;
 import ru.example.ukep.service.UserService;
@@ -33,6 +34,7 @@ import java.util.zip.ZipOutputStream;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final PiiEncryptor pii;
     private final DocumentRepository documentRepository;
     private final DocumentService documentService;
     private final UserService userService;
@@ -45,8 +47,10 @@ public class AdminController {
                            DocumentRepository documentRepository,
                            DocumentService documentService,
                            UserService userService,
-                           EmailService emailService) {
+                           EmailService emailService,
+                           PiiEncryptor pii) {
         this.userRepository = userRepository;
+        this.pii = pii;
         this.documentRepository = documentRepository;
         this.documentService = documentService;
         this.userService = userService;
@@ -79,7 +83,8 @@ public class AdminController {
         String qNorm = (q == null || q.isBlank()) ? null : q.trim().toLowerCase();
         String pattern = (qNorm == null) ? null : "%" + qNorm + "%";
 
-        model.addAttribute("users", userRepository.searchForAdmin(ef, null, pattern));
+        model.addAttribute("users", userRepository.searchForAdmin(ef, null, pattern,
+                qNorm == null ? null : pii.hash(qNorm)));
         model.addAttribute("status", status == null ? "" : status);
         model.addAttribute("q", qNorm == null ? "" : qNorm);
         return "admin-users";

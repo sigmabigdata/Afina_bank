@@ -11,6 +11,7 @@ import ru.example.ukep.entity.Document;
 import ru.example.ukep.entity.DocumentSignature;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.UserRepository;
+import ru.example.ukep.security.PiiEncryptor;
 import ru.example.ukep.service.DocumentService;
 
 import java.io.ByteArrayOutputStream;
@@ -29,14 +30,17 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final UserRepository userRepository;
+    private final PiiEncryptor pii;
 
-    public DocumentController(DocumentService documentService, UserRepository userRepository) {
+    public DocumentController(DocumentService documentService, UserRepository userRepository,
+                            PiiEncryptor pii) {
         this.documentService = documentService;
         this.userRepository = userRepository;
+        this.pii = pii;
     }
 
     private User current(UserDetails p) {
-        return userRepository.findByEmail(p.getUsername()).orElseThrow();
+        return userRepository.findByEmailHash(pii.hash(p.getUsername())).orElseThrow();
     }
 
     @PostMapping("/upload")

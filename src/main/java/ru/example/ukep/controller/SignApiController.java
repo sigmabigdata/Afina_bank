@@ -9,6 +9,7 @@ import ru.example.ukep.entity.Document;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
+import ru.example.ukep.security.PiiEncryptor;
 import ru.example.ukep.service.DocumentService;
 import ru.example.ukep.service.SignatureVerifier;
 
@@ -21,20 +22,23 @@ public class SignApiController {
     private final DocumentService documentService;
     private final SignatureVerifier signatureVerifier;
     private final UserRepository userRepository;
+    private final PiiEncryptor pii;
     private final DocumentRepository documentRepository;
 
     public SignApiController(DocumentService documentService,
                              SignatureVerifier signatureVerifier,
                              UserRepository userRepository,
-                             DocumentRepository documentRepository) {
+                             DocumentRepository documentRepository,
+                            PiiEncryptor pii) {
         this.documentService = documentService;
         this.signatureVerifier = signatureVerifier;
         this.userRepository = userRepository;
+        this.pii = pii;
         this.documentRepository = documentRepository;
     }
 
     private User current(UserDetails p) {
-        return userRepository.findByEmail(p.getUsername()).orElseThrow();
+        return userRepository.findByEmailHash(pii.hash(p.getUsername())).orElseThrow();
     }
 
     /** Пользователь подписывает свой документ. */

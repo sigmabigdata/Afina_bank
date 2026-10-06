@@ -11,32 +11,32 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    Optional<User> findByEmail(String email);
-    Optional<User> findByLoginToken(String loginToken);
-    boolean existsByEmail(String email);
-    List<User> findAllByOrderByCreatedAtDesc();
+    // === Поиск по hash (email/phone шифруются, hash для exact-поиска) ===
 
+    Optional<User> findByEmailHash(String emailHash);
+    Optional<User> findByPhoneHash(String phoneHash);
+    boolean existsByEmailHash(String emailHash);
+    Optional<User> findByLoginToken(String loginToken);
+
+    List<User> findAllByOrderByCreatedAtDesc();
     long countByEnabledTrue();
     long countByEnabledFalse();
 
     /**
-     * Поиск клиентов для админки.
-     *
-     * ВАЖНО: pattern (`%значение%`) формируется в сервисе/контроллере и передаётся
-     * готовым. Не строим concat внутри JPQL и не делаем lower() над параметром —
-     * Hibernate 6 биндит нетипизированный параметр как bytea, PostgreSQL не
-     * может применить lower() к bytea.
+     * Поиск для админки.
+     * fullName — plaintext (fuzzy-поиск).
+     * email/phone — exact через hash (передаётся готовый hash в параметре emailHash).
      */
     @Query("select u from User u where " +
            "(:enabled is null or u.enabled = :enabled) " +
            "and (:role is null or u.role = :role) " +
            "and (:q is null " +
-           "     or lower(u.email) like :q " +
            "     or lower(u.fullName) like :q " +
-           "     or (u.phone is not null and lower(u.phone) like :q)" +
+           "     or u.emailHash = :emailHash" +
            ") " +
            "order by u.createdAt desc")
     List<User> searchForAdmin(@Param("enabled") Boolean enabled,
                               @Param("role") Role role,
-                              @Param("q") String pattern);
+                              @Param("q") String q,
+                              @Param("emailHash") String emailHash);
 }

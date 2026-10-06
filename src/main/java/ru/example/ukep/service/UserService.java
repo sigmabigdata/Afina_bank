@@ -24,9 +24,12 @@ public class UserService implements UserDetailsService {
     public static final Duration LOGIN_TOKEN_TTL = Duration.ofHours(10);
 
     private final UserRepository userRepository;
+    private final ru.example.ukep.security.PiiEncryptor pii;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository,
+                       ru.example.ukep.security.PiiEncryptor pii) {
         this.userRepository = userRepository;
+        this.pii = pii;
     }
 
     // ============ Spring Security ============
@@ -34,7 +37,7 @@ public class UserService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User u = userRepository.findByEmail(username.toLowerCase().trim())
+        User u = userRepository.findByEmailHash(pii.hash(username))
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден: " + username));
         return org.springframework.security.core.userdetails.User
                 .withUsername(u.getEmail())
@@ -48,7 +51,7 @@ public class UserService implements UserDetailsService {
 
     @Transactional
     public String generateLoginLink(String email, String baseUrl) {
-        Optional<User> opt = userRepository.findByEmail(email.toLowerCase().trim());
+        Optional<User> opt = userRepository.findByEmailHash(pii.hash(email));
         if (opt.isEmpty()) return null;
         User u = opt.get();
         if (!u.isEnabled()) return null;
@@ -96,8 +99,10 @@ public class UserService implements UserDetailsService {
     @Transactional
     public User upsertAdminByCert(String cn, String snils) {
         String syntheticEmail = buildAdminEmail(cn, snils);
-        User u = userRepository.findByEmail(syntheticEmail).orElseGet(User::new);
+        String hash = pii.hash(syntheticEmail);
+        User u = userRepository.findByEmailHash(hash).orElseGet(User::new);
         u.setEmail(syntheticEmail);
+        u.setEmailHash(hash);
         u.setFullName(cn);
         u.setRole(Role.ROLE_ADMIN);
         u.setEnabled(true);
@@ -119,13 +124,18 @@ public class UserService implements UserDetailsService {
     public User adminCreate(String email, String fullName, String phone, Role role, boolean enabled) {
         if (email == null || email.isBlank())
             throw new IllegalArgumentException("Email обязателен");
-        if (userRepository.existsByEmail(email.toLowerCase()))
+        String emailHash = pii.hash(email);
+        if (userRepository.existsByEmailHash(emailHash))
             throw new IllegalArgumentException("Email уже занят");
 
         User u = new User();
         u.setEmail(email.toLowerCase().trim());
+        u.setEmailHash(emailHash);
         u.setFullName(fullName == null || fullName.isBlank() ? email : fullName.trim());
-        u.setPhone(phone == null ? null : phone.trim());
+        if (phone != null && !phone.isBlank()) {
+            u.setPhone(phone.trim());
+            u.setPhoneHash(pii.hashPhone(phone));
+        }
         u.setRole(role == null ? Role.ROLE_USER : role);
         u.setEnabled(enabled);
         return userRepository.save(u);
@@ -138,12 +148,20 @@ public class UserService implements UserDetailsService {
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
 
         if (email != null && !email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
-            if (userRepository.existsByEmail(email.toLowerCase()))
+            String newHash = pii.hash(email);
+            if (userRepository.existsByEmailHash(newHash))
                 throw new IllegalArgumentException("Email уже занят");
             u.setEmail(email.toLowerCase().trim());
+            u.setEmailHash(newHash);
         }
         if (fullName != null && !fullName.isBlank()) u.setFullName(fullName.trim());
-        u.setPhone(phone == null ? null : phone.trim());
+        if (phone != null && !phone.isBlank()) {
+            u.setPhone(phone.trim());
+            u.setPhoneHash(pii.hashPhone(phone));
+        } else {
+            u.setPhone(null);
+            u.setPhoneHash(null);
+        }
         if (role != null) u.setRole(role);
         u.setEnabled(enabled);
         return userRepository.save(u);

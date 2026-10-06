@@ -14,7 +14,8 @@ public class Document {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "original_name_enc", columnDefinition = "TEXT")
+    @Convert(converter = ru.example.ukep.security.PiiStringConverter.class)
     private String originalName;
 
     @Column(nullable = false)
@@ -33,7 +34,8 @@ public class Document {
 
     private Instant signedAt;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "signer_subject_enc", length = 1000)
+    @Convert(converter = ru.example.ukep.security.PiiStringConverter.class)
     private String signerSubject;
 
     private String signerSerial;
