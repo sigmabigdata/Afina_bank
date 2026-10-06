@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Афина · Админ · Настройки</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/settings}" class="active">Настройки</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <h1>Настройки приложения</h1>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <form method="post" th:action="@{/admin/settings}" class="form-card" style="max-width:720px">
+
+        <h2 style="margin-top:0;">Мониторинг</h2>
+
+        <div class="form-field">
+            <label>Email для алертов</label>
+            <input type="email" name="monitorMailTo"
+                   th:value="${settings.?[key == 'monitor.mail_to'][0]?.value}"
+                   placeholder="admin@example.ru"/>
+            <div class="hint">Пусто = используется MAIL_FROM из .env.prod</div>
+        </div>
+
+        <div class="checkbox-field">
+            <input type="checkbox" id="monitorEnabled" name="monitorEnabled"
+                   th:checked="${settings.?[key == 'monitor.enabled'][0]?.value == 'true'}"/>
+            <label for="monitorEnabled" style="margin:0;font-weight:400;">
+                Мониторинг включён (проверка каждые 5 минут)
+            </label>
+        </div>
+
+        <h2>Проверка подписи</h2>
+
+        <div class="form-field">
+            <label>Режим проверки отзыва</label>
+            <select name="revocationMode">
+                <option value="strict"
+                        th:selected="${settings.?[key == 'revocation.mode'][0]?.value == 'strict'}">
+                    strict — блокировать подпись без CRL
+                </option>
+                <option value="soft"
+                        th:selected="${settings.?[key == 'revocation.mode'][0]?.value == 'soft'}">
+                    soft — принимать с warning (по умолчанию)
+                </option>
+                <option value="off"
+                        th:selected="${settings.?[key == 'revocation.mode'][0]?.value == 'off'}">
+                    off — не проверять отзыв
+                </option>
+            </select>
+        </div>
+
+        <div class="checkbox-field">
+            <input type="checkbox" id="requireCrl" name="requireCrl"
+                   th:checked="${settings.?[key == 'signature.require_crl'][0]?.value == 'true'}"/>
+            <label for="requireCrl" style="margin:0;font-weight:400;">
+                Требовать актуальный CRL (может блокировать подпись)
+            </label>
+        </div>
+
+        <h2>Rate-limit</h2>
+
+        <div class="form-field">
+            <label>Максимум попыток входа (на IP+email)</label>
+            <input type="number" name="rateLimitLogin" min="1" max="100"
+                   th:value="${settings.?[key == 'auth.rate_limit.login'][0]?.value}"/>
+        </div>
+
+        <div class="form-field">
+            <label>Окно (минут)</label>
+            <input type="number" name="rateLimitWindow" min="1" max="1440"
+                   th:value="${settings.?[key == 'auth.rate_limit.window_min'][0]?.value}"/>
+        </div>
+
+        <div class="alert info" style="margin-top:20px">
+            <b>Изменения параметров мониторинга и rate-limit</b> применяются
+            после перезапуска приложения. Сохранил → перезапусти через
+            «Система → Перезапустить приложение».
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Сохранить</button>
+            <a th:href="@{/admin/settings}" class="btn-ghost">Сбросить</a>
+        </div>
+    </form>
+
+    <h2 style="margin-top:32px;">Текущие значения в БД</h2>
+    <table class="docs">
+        <thead>
+        <tr>
+            <th>Key</th>
+            <th>Value</th>
+            <th>Описание</th>
+            <th>Кто менял</th>
+            <th>Когда</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="s : ${settings}">
+            <td><code th:text="${s.key}">key</code></td>
+            <td th:text="${s.value} ?: '—'">—</td>
+            <td class="muted small" th:text="${s.description}">—</td>
+            <td class="muted small" th:text="${s.updatedBy} ?: '—'">—</td>
+            <td class="muted small"
+                th:text="${#temporals.format(s.updatedAt,'dd.MM.yy HH:mm')}">—</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>

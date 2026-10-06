@@ -14,6 +14,8 @@
     <nav class="admin-nav">
         <a th:href="@{/admin}">Дашборд</a>
         <a th:href="@{/admin/users}" class="active">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/settings}">Настройки</a>
     </nav>
     <form method="post" th:action="@{/admin/logout}" style="display:inline">
         <button class="btn-ghost" type="submit">Выйти</button>
