@@ -59,6 +59,7 @@ services:
       CRL_DIR: /app/crls
       LOG_PATH: /var/log/afina/app.log
       FILE_ENCRYPTION_KEY_PATH: /opt/afina/secrets/file.key
+      TZ: Europe/Moscow
     volumes:
       - ./storage:/app/storage
       - ./logs:/var/log/afina
