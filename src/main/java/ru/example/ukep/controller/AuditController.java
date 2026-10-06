@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin/audit")
@@ -24,6 +25,9 @@ public class AuditController {
 
     private static final DateTimeFormatter CSV_DATE =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
+    // Максимум загружаем в память для фильтрации
+    private static final int MAX_LOAD = 10_000;
 
     private final AuditEventRepository repo;
 
@@ -42,24 +46,12 @@ public class AuditController {
                        @RequestParam(defaultValue = "200") int limit,
                        Model model) {
 
-        Instant fromI = from == null ? null
-                : from.atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant toI = to == null ? null
-                : to.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-
-        String actorPattern = (actor == null || actor.isBlank())
-                ? null : "%" + actor.trim().toLowerCase() + "%";
-
         int safeLimit = Math.min(Math.max(limit, 10), 2000);
 
-        List<AuditEvent> events = repo.search(
-                (type == null || type.isBlank()) ? null : type,
-                actorPattern,
-                (result == null || result.isBlank()) ? null : result,
-                fromI, toI,
-                PageRequest.of(0, safeLimit));
+        List<AuditEvent> filtered = filterInMemory(type, actor, result, from, to);
+        List<AuditEvent> page = filtered.stream().limit(safeLimit).toList();
 
-        model.addAttribute("events", events);
+        model.addAttribute("events", page);
         model.addAttribute("eventTypes", repo.findDistinctEventTypes());
         model.addAttribute("type", type == null ? "" : type);
         model.addAttribute("actor", actor == null ? "" : actor);
@@ -67,6 +59,7 @@ public class AuditController {
         model.addAttribute("from", from);
         model.addAttribute("to", to);
         model.addAttribute("limit", safeLimit);
+        model.addAttribute("totalFound", filtered.size());
         return "admin-audit";
     }
 
@@ -80,29 +73,16 @@ public class AuditController {
                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                           HttpServletResponse resp) throws Exception {
 
-        Instant fromI = from == null ? null
-                : from.atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant toI = to == null ? null
-                : to.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-
-        String actorPattern = (actor == null || actor.isBlank())
-                ? null : "%" + actor.trim().toLowerCase() + "%";
-
-        List<AuditEvent> events = repo.search(
-                (type == null || type.isBlank()) ? null : type,
-                actorPattern,
-                (result == null || result.isBlank()) ? null : result,
-                fromI, toI,
-                PageRequest.of(0, 10000));
+        List<AuditEvent> events = filterInMemory(type, actor, result, from, to);
 
         resp.setContentType("text/csv;charset=UTF-8");
         resp.setHeader("Content-Disposition",
                 "attachment; filename=\"audit-" + LocalDate.now() + ".csv\"");
 
-        // BOM для Excel
         PrintWriter w = resp.getWriter();
         w.write('\ufeff');
-        w.println("event_time,event_type,result,actor_email,actor_role,actor_ip,target_type,target_id,target_info,details");
+        w.println("event_time,event_type,result,actor_email,actor_role,actor_ip," +
+                  "target_type,target_id,target_info,details");
 
         for (AuditEvent e : events) {
             w.println(String.join(",",
@@ -118,6 +98,34 @@ public class AuditController {
                     csv(e.getDetails())));
         }
         w.flush();
+    }
+
+    /**
+     * Фильтрация в памяти.
+     * Hibernate 6 + PostgreSQL не могут типизировать null-параметры
+     * (Instant / String) в JPQL, поэтому фильтруем после загрузки.
+     */
+    private List<AuditEvent> filterInMemory(String type, String actor, String result,
+                                             LocalDate from, LocalDate to) {
+        Instant fromI = from == null ? null
+                : from.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant toI = to == null ? null
+                : to.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        String typeF = (type == null || type.isBlank()) ? null : type;
+        String actorF = (actor == null || actor.isBlank()) ? null : actor.toLowerCase().trim();
+        String resultF = (result == null || result.isBlank()) ? null : result;
+
+        return repo.findAllByOrderByEventTimeDesc(PageRequest.of(0, MAX_LOAD))
+                .stream()
+                .filter(e -> typeF == null || typeF.equals(e.getEventType()))
+                .filter(e -> resultF == null || resultF.equals(e.getResult()))
+                .filter(e -> actorF == null
+                        || (e.getActorEmail() != null
+                            && e.getActorEmail().toLowerCase().contains(actorF)))
+                .filter(e -> fromI == null || !e.getEventTime().isBefore(fromI))
+                .filter(e -> toI == null || e.getEventTime().isBefore(toI))
+                .collect(Collectors.toList());
     }
 
     private static String csv(String s) {
