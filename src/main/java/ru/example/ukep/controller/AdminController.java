@@ -14,6 +14,7 @@ import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
 import ru.example.ukep.security.PiiEncryptor;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.DocumentService;
 import ru.example.ukep.service.EmailService;
 import ru.example.ukep.service.UserService;
@@ -38,6 +39,7 @@ public class AdminController {
     private final DocumentRepository documentRepository;
     private final DocumentService documentService;
     private final UserService userService;
+    private final AuditService audit;
     private final EmailService emailService;
 
     @org.springframework.beans.factory.annotation.Value("${app.base-url}")
@@ -48,13 +50,15 @@ public class AdminController {
                            DocumentService documentService,
                            UserService userService,
                            EmailService emailService,
-                           PiiEncryptor pii) {
+                           PiiEncryptor pii,
+                           AuditService audit) {
         this.userRepository = userRepository;
         this.pii = pii;
         this.documentRepository = documentRepository;
         this.documentService = documentService;
         this.userService = userService;
         this.emailService = emailService;
+        this.audit = audit;
     }
 
     // ==================== ДАШБОРД ====================
@@ -154,9 +158,12 @@ public class AdminController {
                              @RequestParam(required = false) String fullName,
                              @RequestParam(required = false) String phone,
                              @RequestParam(defaultValue = "false") boolean enabled,
+                             java.security.Principal auth,
                              RedirectAttributes ra) {
         try {
             User u = userService.adminCreate(email, fullName, phone, Role.ROLE_USER, enabled);
+            String who = auth != null ? auth.getName() : "unknown";
+            audit.userCreate(who, u.getId(), u.getEmail());
             ra.addFlashAttribute("ok", "Клиент создан: " + u.getEmail());
             return "redirect:/admin/users/" + u.getId();
         } catch (IllegalArgumentException e) {
@@ -180,9 +187,12 @@ public class AdminController {
                              @RequestParam(required = false) String fullName,
                              @RequestParam(required = false) String phone,
                              @RequestParam(defaultValue = "false") boolean enabled,
+                             java.security.Principal auth,
                              RedirectAttributes ra) {
         try {
             userService.adminUpdate(id, email, fullName, phone, Role.ROLE_USER, enabled);
+            String who = auth != null ? auth.getName() : "unknown";
+            audit.userUpdate(who, id, email);
             ra.addFlashAttribute("ok", "Сохранено");
             return "redirect:/admin/users/" + id;
         } catch (IllegalArgumentException e) {
@@ -197,6 +207,7 @@ public class AdminController {
                              RedirectAttributes ra) {
         try {
             userService.adminDelete(id, principal.getName());
+            audit.userDelete(principal.getName(), id, "user#" + id);
             ra.addFlashAttribute("ok", "Пользователь удалён");
             return "redirect:/admin/users";
         } catch (IllegalArgumentException e) {
@@ -327,11 +338,14 @@ public class AdminController {
     @PostMapping("/users/{userId}/documents/upload")
     public String uploadForUser(@PathVariable Long userId,
                                 @RequestParam("file") MultipartFile file,
+                                java.security.Principal principal,
                                 RedirectAttributes ra) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
         try {
             Document doc = documentService.upload(file, user);
+            audit.documentUpload(principal != null ? principal.getName() : "unknown",
+                    doc.getId(), doc.getOriginalName());
             ra.addFlashAttribute("ok", "Документ загружен: " + doc.getOriginalName());
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось загрузить: " + e.getMessage());
@@ -341,12 +355,18 @@ public class AdminController {
 
     /** Удалить документ клиента. */
     @PostMapping("/documents/{id}/delete")
-    public String deleteDocument(@PathVariable Long id, RedirectAttributes ra) {
+    public String deleteDocument(@PathVariable Long id,
+                                 java.security.Principal auth,
+                                 RedirectAttributes ra) {
         Document doc = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
         Long ownerId = doc.getOwner().getId();
         try {
+            String name = doc.getOriginalName();
+            boolean wasSigned = doc.isSigned();
             documentService.deleteAsAdmin(id);
+            audit.documentDelete(auth != null ? auth.getName() : "unknown",
+                    id, name, wasSigned);
             ra.addFlashAttribute("ok", "Документ удалён");
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.example.ukep.dto.CertLoginRequest;
 import ru.example.ukep.entity.User;
 import ru.example.ukep.service.AdminCredentialsFileService;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.SignatureVerifier;
 import ru.example.ukep.service.UserService;
 
@@ -35,6 +36,7 @@ public class AdminCertAuthController {
     private final AdminCredentialsFileService adminFile;
     private final UserService userService;
     private final SignatureVerifier signatureVerifier;
+    private final AuditService audit;
     private final HttpSessionSecurityContextRepository adminContextRepository;
 
     @Value("${app.crl-path:./kontur-q-2025.crl}")
@@ -46,11 +48,13 @@ public class AdminCertAuthController {
     public AdminCertAuthController(AdminCredentialsFileService adminFile,
                                    UserService userService,
                                    SignatureVerifier signatureVerifier,
+                                   AuditService audit,
                                    @Qualifier("adminContextRepository")
                                    HttpSessionSecurityContextRepository adminContextRepository) {
         this.adminFile = adminFile;
         this.userService = userService;
         this.signatureVerifier = signatureVerifier;
+        this.audit = audit;
         this.adminContextRepository = adminContextRepository;
     }
 
@@ -124,9 +128,11 @@ public class AdminCertAuthController {
             adminContextRepository.saveContext(ctx, request, response);
 
             log.info("Admin logged in via cert: {}", admin.get().cn());
+            audit.adminLoginSuccess(admin.get().cn());
             return ResponseEntity.ok(Map.of("success", true, "redirect", "/admin"));
         } catch (Exception e) {
             log.error("Cert login failed", e);
+            audit.adminLoginFail("unknown", e.getMessage());
             return ResponseEntity.status(403).body(
                     Map.of("error", "Не удалось войти: " + e.getMessage()));
         }

@@ -17,6 +17,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import ru.example.ukep.config.SecurityConfig;
 import ru.example.ukep.entity.User;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.EmailService;
 import ru.example.ukep.service.UserService;
 
@@ -29,6 +30,7 @@ public class AuthController {
 
     private final UserService userService;
     private final EmailService emailService;
+    private final AuditService audit;
     private final HttpSessionSecurityContextRepository userContextRepository;
 
     @Value("${app.base-url}")
@@ -36,10 +38,12 @@ public class AuthController {
 
     public AuthController(UserService userService,
                           EmailService emailService,
+                          AuditService audit,
                           @Qualifier("userContextRepository")
                           HttpSessionSecurityContextRepository userContextRepository) {
         this.userService = userService;
         this.emailService = emailService;
+        this.audit = audit;
         this.userContextRepository = userContextRepository;
     }
 
@@ -76,6 +80,8 @@ public class AuthController {
         User user = userService.consumeLoginToken(token);
         if (user == null) {
             log.warn("confirmLogin: token invalid/expired");
+            audit.loginFail("token:" + (token != null && token.length() > 8
+                    ? token.substring(0, 8) + "..." : "?"), "Недействительный/истёкший токен");
             model.addAttribute("error", "Ссылка недействительна или истекла");
             return "login";
         }
@@ -92,6 +98,7 @@ public class AuthController {
         ctx.setAuthentication(auth);
         SecurityContextHolder.setContext(ctx);
         userContextRepository.saveContext(ctx, request, response);
+        audit.loginSuccess(user.getEmail(), user.getRole().name());
 
         return "redirect:/dashboard";
     }

@@ -10,6 +10,7 @@ import ru.example.ukep.entity.User;
 import ru.example.ukep.repository.DocumentRepository;
 import ru.example.ukep.repository.UserRepository;
 import ru.example.ukep.security.PiiEncryptor;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.DocumentService;
 import ru.example.ukep.service.SignatureVerifier;
 
@@ -21,17 +22,20 @@ public class SignApiController {
 
     private final DocumentService documentService;
     private final SignatureVerifier signatureVerifier;
+    private final AuditService audit;
     private final UserRepository userRepository;
     private final PiiEncryptor pii;
     private final DocumentRepository documentRepository;
 
     public SignApiController(DocumentService documentService,
                              SignatureVerifier signatureVerifier,
+                             AuditService audit,
                              UserRepository userRepository,
                              DocumentRepository documentRepository,
                             PiiEncryptor pii) {
         this.documentService = documentService;
         this.signatureVerifier = signatureVerifier;
+        this.audit = audit;
         this.userRepository = userRepository;
         this.pii = pii;
         this.documentRepository = documentRepository;
@@ -70,13 +74,16 @@ public class SignApiController {
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));
             documentService.addSignature(doc.getId(), owner, sig, subject, serial);
+            audit.signSuccess(owner.getEmail(), doc.getId(), subject);
             return ResponseEntity.ok(Map.of(
                     "valid", true,
                     "signersCount", result.get("signersCount"),
                     "signersInfo", result.get("signersInfo")));
         } catch (IllegalArgumentException e) {
+            audit.signFail(owner.getEmail(), doc.getId(), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            audit.signFail(owner.getEmail(), doc.getId(), e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Ошибка проверки подписи: " + e.getMessage()));
         }

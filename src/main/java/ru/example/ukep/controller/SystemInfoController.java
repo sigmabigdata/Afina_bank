@@ -7,6 +7,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.BackupService;
 import ru.example.ukep.service.LogService;
 import ru.example.ukep.service.SystemInfoService;
@@ -24,13 +25,16 @@ public class SystemInfoController {
     private final SystemInfoService sys;
     private final BackupService backups;
     private final LogService logs;
+    private final AuditService audit;
 
     public SystemInfoController(SystemInfoService sys,
                                 BackupService backups,
-                                LogService logs) {
+                                LogService logs,
+                                AuditService audit) {
         this.sys = sys;
         this.backups = backups;
         this.logs = logs;
+        this.audit = audit;
     }
 
     @GetMapping
@@ -49,9 +53,11 @@ public class SystemInfoController {
     // ==================== БЭКАПЫ ====================
 
     @PostMapping("/backups/create")
-    public String createBackup(RedirectAttributes ra) {
+    public String createBackup(java.security.Principal auth, RedirectAttributes ra) {
         try {
             String name = backups.create();
+            String who = auth != null ? auth.getName() : "unknown";
+            audit.backupCreate(who, name);
             ra.addFlashAttribute("ok", "Бэкап создан: " + name);
         } catch (Exception e) {
             log.error("Backup create failed", e);
@@ -75,6 +81,7 @@ public class SystemInfoController {
     @PostMapping("/backups/{name}/restore")
     public String restoreBackup(@PathVariable String name,
                                 @RequestParam String confirm,
+                                java.security.Principal auth,
                                 RedirectAttributes ra) {
         if (!"RESTORE".equals(confirm)) {
             ra.addFlashAttribute("err", "Неверное подтверждение. Введите RESTORE.");
@@ -82,6 +89,8 @@ public class SystemInfoController {
         }
         try {
             String safety = backups.restore(name);
+            String who = auth != null ? auth.getName() : "unknown";
+            audit.backupRestore(who, name);
             ra.addFlashAttribute("ok",
                     "БД восстановлена из " + name +
                     ". Safety-бэкап: " + safety +
@@ -126,8 +135,9 @@ public class SystemInfoController {
      */
     @PostMapping("/restart")
     @ResponseBody
-    public ResponseEntity<?> restart() {
+    public ResponseEntity<?> restart(java.security.Principal auth) {
         log.warn("Restart requested by admin");
+        audit.appRestart(auth != null ? auth.getName() : "unknown");
         new Thread(() -> {
             try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
             log.warn("Exiting for restart");

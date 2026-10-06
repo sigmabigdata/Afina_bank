@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.example.ukep.service.AuditService;
 import ru.example.ukep.service.SettingsService;
 
 @Controller
@@ -19,9 +20,11 @@ public class SettingsController {
     private static final Logger log = LoggerFactory.getLogger(SettingsController.class);
 
     private final SettingsService settings;
+    private final AuditService audit;
 
-    public SettingsController(SettingsService settings) {
+    public SettingsController(SettingsService settings, AuditService audit) {
         this.settings = settings;
+        this.audit = audit;
     }
 
     @GetMapping
@@ -54,6 +57,7 @@ public class SettingsController {
             settings.set("signature.require_crl",
                     requireCrl != null ? "true" : "false", who);
             ra.addFlashAttribute("ok", "Настройки сохранены");
+            audit.settingsUpdate(who, "monitor/revocation/rate-limit");
             log.info("Settings saved by {}", who);
         } catch (Exception e) {
             log.error("Ошибка сохранения настроек", e);
