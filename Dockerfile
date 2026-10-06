@@ -41,9 +41,7 @@ WORKDIR /app
 # Системные библиотеки + утилиты
 RUN apt-get update -o Acquire::Retries=5 && \
     apt-get install -y --no-install-recommends \
-        pcscd libpcsclite1 curl ca-certificates lsb-base gnupg \ \
-        tzdata \
-    
+        pcscd libpcsclite1 curl ca-certificates lsb-base gnupg tzdata \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
          -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
