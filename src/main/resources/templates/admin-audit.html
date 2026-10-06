@@ -55,6 +55,17 @@
     CSV-экспорт можно сделать до очистки.
 </p>
 
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+        <span class="muted small" style="margin-right:6px;">Быстрый выбор:</span>
+        <a th:href="@{/admin/audit}" class="btn-ghost btn-sm">Все</a>
+        <a th:href="@{/admin/audit(from=${#temporals.format(#temporals.createNow(),'yyyy-MM-dd')},to=${#temporals.format(#temporals.createNow(),'yyyy-MM-dd')})}"
+           class="btn-ghost btn-sm">Сегодня</a>
+        <a th:href="@{/admin/audit(from=${#temporals.format(#temporals.createNow().minusDays(6),'yyyy-MM-dd')},to=${#temporals.format(#temporals.createNow(),'yyyy-MM-dd')})}"
+           class="btn-ghost btn-sm">7 дней</a>
+        <a th:href="@{/admin/audit(from=${#temporals.format(#temporals.createNow().minusDays(29),'yyyy-MM-dd')},to=${#temporals.format(#temporals.createNow(),'yyyy-MM-dd')})}"
+           class="btn-ghost btn-sm">30 дней</a>
+    </div>
+
     <form method="get" th:action="@{/admin/audit}" class="filters-form">
         <select name="type">
             <option value="">— Все типы —</option>
