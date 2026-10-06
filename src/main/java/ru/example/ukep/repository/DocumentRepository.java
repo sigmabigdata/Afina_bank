@@ -12,27 +12,34 @@ import java.util.Optional;
 
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
-    @EntityGraph(attributePaths = "signatures")
+    @EntityGraph(attributePaths = {"signatures", "signatures.signerUser"})
     List<Document> findAllByOwnerOrderByUploadedAtDesc(User owner);
 
     Optional<Document> findByIdAndOwner(Long id, User owner);
 
     @Query("select d from Document d join fetch d.owner order by d.uploadedAt desc")
-    @EntityGraph(attributePaths = "signatures")
+    @EntityGraph(attributePaths = {"signatures", "signatures.signerUser"})
     List<Document> findAllWithOwner();
 
     /**
      * Поиск документов для админки. Pattern (`%значение%`) приходит готовым из контроллера.
      */
+    /**
+     * Поиск документов для админки.
+     * originalName и owner.email — зашифрованы (PII), по ним fuzzy-поиск невозможен.
+     * Работает: fuzzy по owner.fullName, exact по owner.emailHash.
+     * Параметр pattern — готовый %q%, emailHash — SHA-256 от lower(email) или null.
+     */
     @Query("select d from Document d join fetch d.owner " +
            "where (:signed is null or d.signed = :signed) " +
            "and (:q is null " +
-           "     or lower(d.originalName) like :q " +
-           "     or lower(d.owner.email) like :q " +
-           "     or lower(d.owner.fullName) like :q" +
+           "     or lower(d.owner.fullName) like :q " +
+           "     or (:emailHash is not null and d.owner.emailHash = :emailHash)" +
            ") " +
            "order by d.uploadedAt desc")
-    List<Document> searchForAdmin(@Param("signed") Boolean signed, @Param("q") String pattern);
+    List<Document> searchForAdmin(@Param("signed") Boolean signed,
+                                  @Param("q") String pattern,
+                                  @Param("emailHash") String emailHash);
 
     long countBySignedTrue();
     long countBySignedFalse();

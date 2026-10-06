@@ -57,12 +57,19 @@ public class DocumentService {
     @Transactional
     public void deleteAsAdmin(Long id) throws IOException {
         Document doc = getById(id);
-        if (doc.isSigned()) {
-            throw new IllegalArgumentException(
-                    "Нельзя удалить подписанный документ — юридически значимый артефакт");
-        }
+        boolean wasSigned = doc.isSigned();
+        int signaturesCount = (int) signatureRepository.countByDocumentId(doc.getId());
+
         Files.deleteIfExists(storageRoot.resolve(doc.getStoredName()));
         documentRepository.delete(doc);
+
+        if (wasSigned) {
+            // Аудит: удаление подписанного документа — важное событие
+            org.slf4j.LoggerFactory.getLogger(DocumentService.class).warn(
+                    "АУДИТ: администратор удалил подписанный документ id={}, "
+                    + "имя='{}', было подписей={}",
+                    id, doc.getOriginalName(), signaturesCount);
+        }
     }
 
     @Transactional

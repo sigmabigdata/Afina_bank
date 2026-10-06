@@ -179,11 +179,15 @@
                    th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
                    title="Скачать подпись">📎</a>
 
-                <form th:unless="${d.signed}" method="post"
+                <form method="post"
                       th:action="@{'/admin/documents/' + ${d.id} + '/delete'}"
-                      onsubmit="return confirm('Удалить документ? Действие необратимо.');"
+                      th:onsubmit="${d.signed}
+                          ? 'return confirm(\'ВНИМАНИЕ! Документ подписан. Удаление приведёт к потере всех подписей. Продолжить?\');'
+                          : 'return confirm(\'Удалить документ?\');'"
                       style="display:inline">
-                    <button type="submit" class="link danger" title="Удалить">🗑</button>
+                    <button type="submit" class="link danger"
+                            th:title="${d.signed} ? 'Удалить подписанный документ (аудит)' : 'Удалить'"
+                            th:text="${d.signed} ? '🗑⚠' : '🗑'">🗑</button>
                 </form>
             </td>
         </tr>
