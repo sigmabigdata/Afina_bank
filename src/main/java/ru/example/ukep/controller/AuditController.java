@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import ru.example.ukep.entity.AuditEvent;
 import ru.example.ukep.repository.AuditEventRepository;
+import ru.example.ukep.service.AuditCleanupService;
+import ru.example.ukep.service.SettingsService;
 
 import java.io.PrintWriter;
 import java.time.Instant;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/admin/audit")
 public class AuditController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuditController.class);
+
     private static final DateTimeFormatter CSV_DATE =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
@@ -30,9 +34,15 @@ public class AuditController {
     private static final int MAX_LOAD = 10_000;
 
     private final AuditEventRepository repo;
+    private final AuditCleanupService cleanupService;
+    private final SettingsService settings;
 
-    public AuditController(AuditEventRepository repo) {
+    public AuditController(AuditEventRepository repo,
+                           AuditCleanupService cleanupService,
+                           SettingsService settings) {
         this.repo = repo;
+        this.cleanupService = cleanupService;
+        this.settings = settings;
     }
 
     @GetMapping
@@ -48,6 +58,8 @@ public class AuditController {
 
         int safeLimit = Math.min(Math.max(limit, 10), 2000);
 
+        log.debug("audit filter: type='{}' actor='{}' result='{}' from={} to={}",
+                type, actor, result, from, to);
         List<AuditEvent> filtered = filterInMemory(type, actor, result, from, to);
         List<AuditEvent> page = filtered.stream().limit(safeLimit).toList();
 
@@ -60,6 +72,7 @@ public class AuditController {
         model.addAttribute("to", to);
         model.addAttribute("limit", safeLimit);
         model.addAttribute("totalFound", filtered.size());
+        model.addAttribute("retentionDays", settings.getIntOrDefault("audit.retention_days", 365));
         return "admin-audit";
     }
 
@@ -126,6 +139,36 @@ public class AuditController {
                 .filter(e -> fromI == null || !e.getEventTime().isBefore(fromI))
                 .filter(e -> toI == null || e.getEventTime().isBefore(toI))
                 .collect(Collectors.toList());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/cleanup")
+    public String cleanupNow(org.springframework.web.servlet.mvc.support.RedirectAttributes ra) {
+        int days = settings.getIntOrDefault("audit.retention_days", 365);
+        if (days <= 0) {
+            ra.addFlashAttribute("err", "Retention = 0, очистка отключена");
+            return "redirect:/admin/audit";
+        }
+        try {
+            long deleted = cleanupService.cleanup(days);
+            ra.addFlashAttribute("ok", "Удалено записей: " + deleted + " (старше " + days + " дней)");
+        } catch (Exception e) {
+            ra.addFlashAttribute("err", "Ошибка очистки: " + e.getMessage());
+        }
+        return "redirect:/admin/audit";
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/retention")
+    public String setRetention(@RequestParam int days,
+                               java.security.Principal auth,
+                               org.springframework.web.servlet.mvc.support.RedirectAttributes ra) {
+        if (days < 0 || days > 3650) {
+            ra.addFlashAttribute("err", "Допустимо 0..3650 дней");
+            return "redirect:/admin/audit";
+        }
+        settings.set("audit.retention_days", String.valueOf(days),
+                auth != null ? auth.getName() : "admin");
+        ra.addFlashAttribute("ok", "Retention: " + days + " дней");
+        return "redirect:/admin/audit";
     }
 
     private static String csv(String s) {

@@ -33,6 +33,9 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
 
     long countByEventTypeAndResult(String eventType, String result);
 
+    /** Удаление старых событий (retention policy). */
+    long deleteByEventTimeBefore(Instant cutoff);
+
     @Query("select distinct e.eventType from AuditEvent e order by e.eventType")
     List<String> findDistinctEventTypes();
 }

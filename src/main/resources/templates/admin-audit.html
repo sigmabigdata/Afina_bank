@@ -28,6 +28,33 @@
 <main>
     <h1>Журнал аудита</h1>
 
+<div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+<div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+<div class="panel" style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
+    <div>
+        <b>Хранение событий:</b>
+        <span th:text="${retentionDays} + ' дней'">365 дней</span>
+        <span th:if="${retentionDays == 0}" class="muted">(очистка отключена)</span>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <form method="post" th:action="@{/admin/audit/retention}"
+              style="display:flex; gap:8px; align-items:center;">
+            <input type="number" name="days" th:value="${retentionDays}"
+                   min="0" max="3650" style="width:100px"/>
+            <button type="submit" class="btn-ghost">Сохранить</button>
+        </form>
+        <form method="post" th:action="@{/admin/audit/cleanup}"
+              onsubmit="return confirm('Удалить все события старше ' + ${retentionDays} + ' дней?');">
+            <button type="submit" class="btn-danger">🧹 Очистить сейчас</button>
+        </form>
+    </div>
+</div>
+<p class="muted small" style="margin:-8px 0 16px;">
+    Автоочистка запускается ежедневно в 04:00.
+    CSV-экспорт можно сделать до очистки.
+</p>
+
     <form method="get" th:action="@{/admin/audit}" class="filters-form">
         <select name="type">
             <option value="">— Все типы —</option>
