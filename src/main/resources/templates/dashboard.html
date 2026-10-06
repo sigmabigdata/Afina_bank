@@ -47,8 +47,7 @@
                 <div class="actions">
                     <a th:href="@{'/documents/' + ${d.id} + '/view'}" target="_blank" title="Просмотреть">👁</a>
                     <a th:href="@{'/documents/' + ${d.id} + '/download'}" title="Скачать">⬇</a>
-                    <button th:if="${not d.signatures.?[signerUser != null and signerUser.id == user.id].size() > 0}"
-                            type="button" class="btn-sign" th:attr="data-id=${d.id}" title="Подписать">✍</button>
+                    <button th:if="${not d.hasSignatureByUser(user.id)}" type="button" class="btn-sign" th:attr="data-id=${d.id}" title="Подписать">✍</button>
                     <form th:unless="${d.signed}" method="post" th:action="@{'/documents/' + ${d.id} + '/delete'}"
                           onsubmit="return confirm('Удалить документ?')" style="display:inline">
                         <button type="submit" class="link danger" title="Удалить">🗑</button>

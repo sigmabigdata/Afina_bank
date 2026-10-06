@@ -91,10 +91,15 @@ public class AdminController {
     }
 
     @GetMapping("/users/{id}")
-    public String userCard(@PathVariable Long id, Model model) {
+    public String userCard(@PathVariable Long id,
+                           java.security.Principal principal,
+                           Model model) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+        User admin = userRepository.findByEmailHash(pii.hash(principal.getName()))
+                .orElse(null);
         model.addAttribute("user", user);
+        model.addAttribute("currentAdminId", admin != null ? admin.getId() : null);
         model.addAttribute("documents",
                 documentRepository.findAllByOwnerOrderByUploadedAtDesc(user));
         model.addAttribute("docsTotal", documentRepository.countByOwner(user));

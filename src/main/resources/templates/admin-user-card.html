@@ -174,9 +174,7 @@
                    target="_blank" title="Просмотреть">👁</a>
                 <a th:href="@{'/admin/documents/' + ${d.id} + '/download'}"
                    title="Скачать документ">⬇</a>
-                <button th:if="${not d.signatures.?[signerUser != null and signerUser.role.name() == 'ROLE_ADMIN'].size() > 0}"
-                        type="button" class="btn-sign" th:attr="data-id=${d.id}"
-                        title="Подписать">✍</button>
+                <button th:if="${not d.hasSignatureByUser(currentAdminId)}" type="button" class="btn-sign" th:attr="data-id=${d.id}" title="Подписать">✍</button>
                 <a th:if="${d.signed}"
                    th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
                    title="Скачать подпись">📎</a>

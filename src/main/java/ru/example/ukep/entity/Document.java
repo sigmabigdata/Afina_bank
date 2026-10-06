@@ -78,6 +78,14 @@ public class Document {
     public User getOwner() { return owner; }
     public List<DocumentSignature> getSignatures() { return signatures; }
 
+    /** Есть ли подпись указанного пользователя на этом документе. */
+    public boolean hasSignatureByUser(Long userId) {
+        if (userId == null || signatures == null) return false;
+        return signatures.stream().anyMatch(s ->
+                s.getSignerUser() != null
+                && s.getSignerUser().getId().equals(userId));
+    }
+
     // --- setters ---
     public void setId(Long id) { this.id = id; }
     public void setOriginalName(String originalName) { this.originalName = originalName; }
