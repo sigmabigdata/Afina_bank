@@ -3,17 +3,14 @@ package ru.example.ukep.service;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import ru.example.ukep.entity.AuditEvent;
 import ru.example.ukep.repository.AuditEventRepository;
 
-/**
- * Запись в журнал аудита. Пишет в отдельной транзакции (REQUIRES_NEW),
- * чтобы запись не откатывалась при ошибке основного бизнес-действия.
- */
 @Service
 public class AuditService {
 
@@ -21,14 +18,9 @@ public class AuditService {
 
     private final AuditEventRepository repo;
 
-    @Autowired(required = false)
-    private HttpServletRequest currentRequest;
-
     public AuditService(AuditEventRepository repo) {
         this.repo = repo;
     }
-
-    // === Сокращённые методы для типовых событий ===
 
     public void loginSuccess(String email, String role) {
         event("LOGIN_SUCCESS", "SUCCESS", email, role, null, null, null, null);
@@ -47,44 +39,36 @@ public class AuditService {
     }
 
     public void userCreate(String actor, Long userId, String email) {
-        event("USER_CREATE", "SUCCESS", actor, null,
-                "USER", String.valueOf(userId), email, null);
+        event("USER_CREATE", "SUCCESS", actor, null, "USER", String.valueOf(userId), email, null);
     }
 
     public void userUpdate(String actor, Long userId, String email) {
-        event("USER_UPDATE", "SUCCESS", actor, null,
-                "USER", String.valueOf(userId), email, null);
+        event("USER_UPDATE", "SUCCESS", actor, null, "USER", String.valueOf(userId), email, null);
     }
 
     public void userDelete(String actor, Long userId, String email) {
-        event("USER_DELETE", "SUCCESS", actor, null,
-                "USER", String.valueOf(userId), email, null);
+        event("USER_DELETE", "SUCCESS", actor, null, "USER", String.valueOf(userId), email, null);
     }
 
     public void documentUpload(String actor, Long docId, String name) {
-        event("DOC_UPLOAD", "SUCCESS", actor, null,
-                "DOCUMENT", String.valueOf(docId), name, null);
+        event("DOC_UPLOAD", "SUCCESS", actor, null, "DOCUMENT", String.valueOf(docId), name, null);
     }
 
     public void documentDelete(String actor, Long docId, String name, boolean signed) {
-        event("DOC_DELETE", "SUCCESS", actor, null,
-                "DOCUMENT", String.valueOf(docId), name,
+        event("DOC_DELETE", "SUCCESS", actor, null, "DOCUMENT", String.valueOf(docId), name,
                 signed ? "Подписанный документ" : null);
     }
 
     public void signSuccess(String actor, Long docId, String signerSubject) {
-        event("SIGN_SUCCESS", "SUCCESS", actor, null,
-                "DOCUMENT", String.valueOf(docId), signerSubject, null);
+        event("SIGN_SUCCESS", "SUCCESS", actor, null, "DOCUMENT", String.valueOf(docId), signerSubject, null);
     }
 
     public void signFail(String actor, Long docId, String reason) {
-        event("SIGN_FAIL", "FAIL", actor, null,
-                "DOCUMENT", String.valueOf(docId), null, reason);
+        event("SIGN_FAIL", "FAIL", actor, null, "DOCUMENT", String.valueOf(docId), null, reason);
     }
 
     public void signatureDeleteAttempt(String actor, Long docId) {
-        event("SIGNATURE_DELETE_ATTEMPT", "WARN", actor, null,
-                "DOCUMENT", String.valueOf(docId), null,
+        event("SIGNATURE_DELETE_ATTEMPT", "WARN", actor, null, "DOCUMENT", String.valueOf(docId), null,
                 "Попытка удаления подписи заблокирована");
     }
 
@@ -93,13 +77,11 @@ public class AuditService {
     }
 
     public void backupCreate(String actor, String fileName) {
-        event("BACKUP_CREATE", "SUCCESS", actor, null,
-                "BACKUP", fileName, null, null);
+        event("BACKUP_CREATE", "SUCCESS", actor, null, "BACKUP", fileName, null, null);
     }
 
     public void backupRestore(String actor, String fileName) {
-        event("BACKUP_RESTORE", "WARN", actor, null,
-                "BACKUP", fileName, null, "Заменены все данные");
+        event("BACKUP_RESTORE", "WARN", actor, null, "BACKUP", fileName, null, "Заменены все данные");
     }
 
     public void appRestart(String actor) {
@@ -107,16 +89,12 @@ public class AuditService {
     }
 
     public void settingsUpdate(String actor, String keys) {
-        event("SETTINGS_UPDATE", "SUCCESS", actor, null,
-                "SETTINGS", null, keys, null);
+        event("SETTINGS_UPDATE", "SUCCESS", actor, null, "SETTINGS", null, keys, null);
     }
-
-    // === Универсальный метод ===
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void event(String type, String result, String actorEmail, String actorRole,
-                      String targetType, String targetId, String targetInfo,
-                      String details) {
+                      String targetType, String targetId, String targetInfo, String details) {
         try {
             AuditEvent e = new AuditEvent();
             e.setEventType(type);
@@ -127,15 +105,26 @@ public class AuditService {
             e.setTargetId(targetId);
             e.setTargetInfo(truncate(targetInfo, 500));
             e.setDetails(details);
-            if (currentRequest != null) {
-                e.setActorIp(clientIp(currentRequest));
-                String ua = currentRequest.getHeader("User-Agent");
-                e.setUserAgent(truncate(ua, 500));
+
+            HttpServletRequest req = currentRequest();
+            if (req != null) {
+                e.setActorIp(clientIp(req));
+                e.setUserAgent(truncate(req.getHeader("User-Agent"), 500));
             }
+
             repo.save(e);
+            log.debug("audit: {} {}", type, result);
         } catch (Exception ex) {
-            // аудит не должен валить основную операцию
             log.warn("audit failed: {} — {}", type, ex.getMessage());
+        }
+    }
+
+    private HttpServletRequest currentRequest() {
+        try {
+            var attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            return attrs != null ? attrs.getRequest() : null;
+        } catch (Exception e) {
+            return null;
         }
     }
 

@@ -81,7 +81,7 @@
             <td class="small">
                 <span th:text="${e.actorEmail} ?: '—'">—</span>
                 <span th:if="${e.actorRole != null}" class="muted"
-                      th:text="' (' + ${e.actorRole} + ')'"></span>
+                      th:text="| (${e.actorRole})|"></span>
             </td>
             <td class="small muted" th:text="${e.actorIp} ?: '—'">—</td>
             <td class="small">
