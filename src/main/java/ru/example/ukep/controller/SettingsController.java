@@ -26,6 +26,16 @@ public class SettingsController {
     private final EmailService emailService;
     private final PiiEncryptor pii;
 
+    // Значения из .env.prod — для отображения в форме как reference
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.host:}")
+    private String envMailHost;
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.port:465}")
+    private String envMailPort;
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.username:}")
+    private String envMailUsername;
+    @org.springframework.beans.factory.annotation.Value("${app.mail.from:}")
+    private String envMailFrom;
+
     public SettingsController(SettingsService settings,
                               AuditService audit,
                               EmailService emailService,
@@ -47,6 +57,12 @@ public class SettingsController {
         model.addAttribute("smtpSsl", settings.getBoolOrDefault("smtp.ssl", true));
         boolean hasPassword = !settings.getOrDefault("smtp.password", "").isBlank();
         model.addAttribute("smtpHasPassword", hasPassword);
+
+        // Reference — текущие значения из .env.prod
+        model.addAttribute("envMailHost", envMailHost);
+        model.addAttribute("envMailPort", envMailPort);
+        model.addAttribute("envMailUsername", envMailUsername);
+        model.addAttribute("envMailFrom", envMailFrom);
         return "admin-settings";
     }
 
@@ -93,6 +109,24 @@ public class SettingsController {
             log.info("Settings saved by {}", who);
         } catch (Exception e) {
             log.error("Ошибка сохранения настроек", e);
+            ra.addFlashAttribute("err", "Ошибка: " + e.getMessage());
+        }
+        return "redirect:/admin/settings";
+    }
+
+    @PostMapping("/smtp/reset-to-env")
+    public String smtpResetToEnv(Authentication auth, RedirectAttributes ra) {
+        String who = auth != null ? auth.getName() : "unknown";
+        try {
+            settings.set("smtp.host", "", who);
+            settings.set("smtp.port", "465", who);
+            settings.set("smtp.username", "", who);
+            settings.set("smtp.password", "", who);
+            settings.set("smtp.from", "", who);
+            settings.set("smtp.ssl", "true", who);
+            audit.settingsUpdate(who, "smtp-reset-to-env");
+            ra.addFlashAttribute("ok", "SMTP-настройки сброшены к .env.prod");
+        } catch (Exception e) {
             ra.addFlashAttribute("err", "Ошибка: " + e.getMessage());
         }
         return "redirect:/admin/settings";

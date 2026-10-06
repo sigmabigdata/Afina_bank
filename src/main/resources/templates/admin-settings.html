@@ -96,43 +96,66 @@
         <h2>SMTP (отправка email)</h2>
 
         <div class="alert info" style="margin-bottom:16px">
-            Если поля пусты — используются настройки из <code>.env.prod</code>.
-            Пароль хранится в БД в зашифрованном виде (AES-256-GCM).
-            Меняй только если нужно переопределить SMTP.
+            <b>Если поля пусты</b> — используются настройки из <code>.env.prod</code>:
+            <table class="kv-table" style="margin:10px 0 0;">
+                <tr><td class="kv-key">Host</td><td class="kv-val" th:text="${envMailHost} ?: '—'">—</td></tr>
+                <tr><td class="kv-key">Port</td><td class="kv-val" th:text="${envMailPort}">—</td></tr>
+                <tr><td class="kv-key">Username</td><td class="kv-val" th:text="${envMailUsername} ?: '—'">—</td></tr>
+                <tr><td class="kv-key">From (отправитель)</td><td class="kv-val" th:text="${envMailFrom} ?: '—'">—</td></tr>
+                <tr><td class="kv-key">Password</td><td class="kv-val">••••••</td></tr>
+            </table>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:16px;">
+            <span class="muted small">
+                Заполняй поля ниже <b>только чтобы переопределить</b> .env.prod.
+                Иначе оставь пустыми.
+            </span>
+            <form method="post" th:action="@{/admin/settings/smtp/reset-to-env}"
+                  style="margin:0;"
+                  onsubmit="return confirm('Сбросить SMTP-настройки к .env.prod?');">
+                <button type="submit" class="btn-ghost btn-sm">↻ Сбросить к .env.prod</button>
+            </form>
         </div>
 
         <div class="form-field">
-            <label>SMTP-хост</label>
+            <label>SMTP-хост <span class="muted">(пусто → из .env.prod)</span></label>
             <input type="text" name="smtpHost" th:value="${smtpHost}"
-                   placeholder="mail.example.ru"/>
+                   th:placeholder="${envMailHost} ?: 'mail.example.ru'"/>
         </div>
 
         <div class="form-field">
-            <label>Порт</label>
+            <label>Порт <span class="muted">(пусто → 465)</span></label>
             <input type="number" name="smtpPort" th:value="${smtpPort}"
-                   min="1" max="65535" placeholder="465"/>
+                   min="1" max="65535" th:placeholder="${envMailPort}"/>
         </div>
 
         <div class="form-field">
-            <label>Логин</label>
+            <label>Логин <span class="muted">(пусто → из .env.prod)</span></label>
             <input type="text" name="smtpUsername" th:value="${smtpUsername}"
-                   placeholder="noreply@example.ru" autocomplete="off"/>
+                   th:placeholder="${envMailUsername} ?: 'noreply@example.ru'"
+                   autocomplete="off"/>
         </div>
 
         <div class="form-field">
-            <label>Пароль</label>
+            <label>Пароль <span class="muted">(пусто → из .env.prod или не менять)</span></label>
             <input type="password" name="smtpPassword" value=""
                    th:placeholder="${smtpHasPassword} ? '•••••• (оставьте пустым чтобы не менять)' : 'Введите пароль'"
                    autocomplete="new-password"/>
-            <div class="hint" th:if="${smtpHasPassword}">
-                Пароль уже сохранён. Оставьте поле пустым, чтобы не менять.
-            </div>
         </div>
 
         <div class="form-field">
-            <label>От кого (From)</label>
+            <label>
+                <b>From (отправитель)</b>
+                <span class="muted">— адрес, от чьего имени уходит письмо.
+                Должен быть на домене SMTP-сервера. Пусто → из .env.prod</span>
+            </label>
             <input type="email" name="smtpFrom" th:value="${smtpFrom}"
-                   placeholder="noreply@example.ru"/>
+                   th:placeholder="${envMailFrom} ?: 'noreply@afinasystems.ru'"/>
+            <div class="hint">
+                ⚠️ <b>Не вводи здесь адрес получателя.</b> Получатель указывается
+                при отправке (в форме ниже или в карточке клиента).
+            </div>
         </div>
 
         <div class="checkbox-field">
@@ -144,18 +167,18 @@
         </div>
 
         <div class="panel" style="background:#f8faff; padding:14px 18px; border-radius:10px; margin-top:16px;">
-            <b>Проверка SMTP:</b>
-            <form method="post" th:action="@{/admin/settings/test-email}"
-                  style="display:flex; gap:10px; margin-top:10px; align-items:center;">
-                <input type="email" name="to" required
-                       placeholder="Куда отправить тестовое письмо"
-                       style="flex:1; padding:10px 12px; border:1px solid #cfd6e4; border-radius:8px;"/>
-                <button type="submit" class="btn-ghost">✉ Отправить тест</button>
-            </form>
-            <p class="muted small" style="margin:8px 0 0;">
-                Сохрани настройки SMTP <b>до</b> отправки теста.
-                Если поле «Куда» пустое — подставится email текущего админа.
+            <b>Проверка SMTP — отправить тестовое письмо</b>
+            <p class="muted small" style="margin:6px 0 10px;">
+                Сохрани настройки перед отправкой. Письмо уйдёт через активные
+                SMTP-настройки (из БД или .env.prod).
             </p>
+            <form method="post" th:action="@{/admin/settings/test-email}"
+                  style="display:flex; gap:10px; align-items:center;">
+                <input type="email" name="to" required
+                       placeholder="Email получателя тестового письма"
+                       style="flex:1; padding:10px 12px; border:1px solid #cfd6e4; border-radius:8px;"/>
+                <button type="submit" class="btn">✉ Отправить тест</button>
+            </form>
         </div>
 
         <div class="alert info" style="margin-top:20px">
