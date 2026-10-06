@@ -93,6 +93,71 @@
                    th:value="${settings.?[key == 'auth.rate_limit.window_min'][0]?.value}"/>
         </div>
 
+        <h2>SMTP (отправка email)</h2>
+
+        <div class="alert info" style="margin-bottom:16px">
+            Если поля пусты — используются настройки из <code>.env.prod</code>.
+            Пароль хранится в БД в зашифрованном виде (AES-256-GCM).
+            Меняй только если нужно переопределить SMTP.
+        </div>
+
+        <div class="form-field">
+            <label>SMTP-хост</label>
+            <input type="text" name="smtpHost" th:value="${smtpHost}"
+                   placeholder="mail.example.ru"/>
+        </div>
+
+        <div class="form-field">
+            <label>Порт</label>
+            <input type="number" name="smtpPort" th:value="${smtpPort}"
+                   min="1" max="65535" placeholder="465"/>
+        </div>
+
+        <div class="form-field">
+            <label>Логин</label>
+            <input type="text" name="smtpUsername" th:value="${smtpUsername}"
+                   placeholder="noreply@example.ru" autocomplete="off"/>
+        </div>
+
+        <div class="form-field">
+            <label>Пароль</label>
+            <input type="password" name="smtpPassword" value=""
+                   th:placeholder="${smtpHasPassword} ? '•••••• (оставьте пустым чтобы не менять)' : 'Введите пароль'"
+                   autocomplete="new-password"/>
+            <div class="hint" th:if="${smtpHasPassword}">
+                Пароль уже сохранён. Оставьте поле пустым, чтобы не менять.
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label>От кого (From)</label>
+            <input type="email" name="smtpFrom" th:value="${smtpFrom}"
+                   placeholder="noreply@example.ru"/>
+        </div>
+
+        <div class="checkbox-field">
+            <input type="checkbox" id="smtpSsl" name="smtpSsl"
+                   th:checked="${smtpSsl}"/>
+            <label for="smtpSsl" style="margin:0;font-weight:400;">
+                Использовать SSL (обычно порт 465). Если выключено — STARTTLS (587)
+            </label>
+        </div>
+
+        <div class="panel" style="background:#f8faff; padding:14px 18px; border-radius:10px; margin-top:16px;">
+            <b>Проверка SMTP:</b>
+            <form method="post" th:action="@{/admin/settings/test-email}"
+                  style="display:flex; gap:10px; margin-top:10px; align-items:center;">
+                <input type="email" name="to" required
+                       placeholder="Куда отправить тестовое письмо"
+                       style="flex:1; padding:10px 12px; border:1px solid #cfd6e4; border-radius:8px;"/>
+                <button type="submit" class="btn-ghost">✉ Отправить тест</button>
+            </form>
+            <p class="muted small" style="margin:8px 0 0;">
+                Сохрани настройки SMTP <b>до</b> отправки теста.
+                Если поле «Куда» пустое — подставится email текущего админа.
+            </p>
+        </div>
+
         <div class="alert info" style="margin-top:20px">
             <b>Изменения параметров мониторинга и rate-limit</b> применяются
             после перезапуска приложения. Сохранил → перезапусти через

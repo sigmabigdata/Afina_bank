@@ -6,33 +6,52 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import ru.example.ukep.security.PiiEncryptor;
+
+import java.util.Properties;
 
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
-    /** Необязательный бин — в dev-профиле SMTP может быть не настроен. */
+    /** Fallback: Spring Boot JavaMailSender из application-prod.yml (.env.prod) */
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final SettingsService settings;
+    private final PiiEncryptor pii;
 
     @Value("${app.mail.mode:log}")
     private String mode;
 
     @Value("${app.mail.from:noreply@example.com}")
-    private String from;
+    private String fromEnv;
 
-    @Value("${app.mail.from-name:Афина}")
-    private String fromName;
-
-    public EmailService(ObjectProvider<JavaMailSender> mailSenderProvider) {
+    public EmailService(ObjectProvider<JavaMailSender> mailSenderProvider,
+                        SettingsService settings,
+                        PiiEncryptor pii) {
         this.mailSenderProvider = mailSenderProvider;
+        this.settings = settings;
+        this.pii = pii;
     }
 
-    /**
-     * Алерт мониторинга: сервис недоступен.
-     */
+    public void sendLoginLink(String to, String loginUrl) {
+        String subject = "УКЭП Сервис · Ссылка для входа";
+        String body = """
+                Здравствуйте!
+
+                Для входа в личный кабинет перейдите по ссылке:
+                %s
+
+                Ссылка действует 10 часов и может быть использована только один раз.
+                Если вы не запрашивали вход — просто проигнорируйте это письмо.
+                """.formatted(loginUrl);
+
+        send(to, subject, body);
+    }
+
     public void sendAlert(String to, int failCount, String reason) {
         String subject = "Афина · Сервис недоступен";
         String body = """
@@ -48,12 +67,46 @@ public class EmailService {
                   docker compose -f docker-compose-prod.yml --env-file .env.prod logs app --tail 50
                 """.formatted(reason, failCount);
 
-        JavaMailSender sender = mailSenderProvider.getIfAvailable();
-        if (!"smtp".equalsIgnoreCase(mode) || sender == null) {
-            log.warn("[DEV-ALERT] to={}, subject={}, body=\n{}", to, subject, body);
+        send(to, subject, body);
+    }
+
+    /** Тестовое письмо — для кнопки "Проверить" в UI. */
+    public void sendTest(String to) {
+        String subject = "Афина · Тестовое письмо";
+        String body = """
+                Это тестовое письмо от сервиса Афина.
+
+                Если вы его видите — SMTP настроен корректно.
+                Отправлено: %s
+                """.formatted(java.time.LocalDateTime.now());
+
+        // Тестовое письмо всегда уходит, даже в режиме log
+        sendWithOverride(to, subject, body, true);
+    }
+
+    // ==================== ядро ====================
+
+    private void send(String to, String subject, String body) {
+        sendWithOverride(to, subject, body, false);
+    }
+
+    private void sendWithOverride(String to, String subject, String body, boolean forceSend) {
+        JavaMailSender sender = resolveSender(forceSend);
+
+        if (sender == null) {
+            log.warn("""
+                    
+                    ============================================================
+                    [DEV-MAIL] Кому : {}
+                    [DEV-MAIL] Тема : {}
+                    [DEV-MAIL] Тело :
+                    {}
+                    ============================================================
+                    """, to, subject, body);
             return;
         }
 
+        String from = resolveFrom();
         try {
             MimeMessage msg = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
@@ -62,57 +115,52 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(body, false);
             sender.send(msg);
-            log.info("Alert email sent to {}", to);
+            log.info("Email sent to {} (from {})", to, from);
         } catch (Exception e) {
-            log.error("Не удалось отправить alert на {}", to, e);
+            log.error("Не удалось отправить письмо на {}", to, e);
+            log.warn("[FALLBACK-MAIL] Кому: {}, subject: {}\n{}", to, subject, body);
             throw new RuntimeException("SMTP: " + e.getMessage(), e);
         }
     }
 
-    public void sendLoginLink(String to, String loginUrl) {
-        String subject = "Афина · Ссылка для входа";
-        String body = """
-                Здравствуйте!
-
-                Для входа в личный кабинет перейдите по ссылке:
-                %s
-
-                Ссылка действует 10 часов и может быть использована только один раз.
-                Если вы не запрашивали вход — просто проигнорируйте это письмо.
-
-                С уважением,
-                сервис «Афина»
-                """.formatted(loginUrl);
-
-        JavaMailSender sender = mailSenderProvider.getIfAvailable();
-
-        // В dev-режиме или если SMTP не настроен — пишем ссылку в лог
-        if (!"smtp".equalsIgnoreCase(mode) || sender == null) {
-            log.warn("""
-
-                    ============================================================
-                    [DEV-MAIL] Кому : {}
-                    [DEV-MAIL] Тема : {}
-                    [DEV-MAIL] Ссылка для входа:
-                    {}
-                    ============================================================
-                    """, to, subject, loginUrl);
-            return;
+    /** Возвращает JavaMailSender: из БД (если настроен) или spring-boot fallback. */
+    private JavaMailSender resolveSender(boolean force) {
+        if (settings.isSmtpConfigured()) {
+            return buildFromSettings();
         }
-
-        try {
-            MimeMessage msg = sender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
-            helper.setFrom(from, fromName);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(body, false);
-            sender.send(msg);
-            log.info("Login link email sent to {}", to);
-        } catch (Exception e) {
-            log.error("Не удалось отправить письмо на {}", to, e);
-            // На случай сбоя SMTP — резервно выводим ссылку в лог
-            log.warn("[FALLBACK-MAIL] Ссылка для {}: {}", to, loginUrl);
+        // Fallback на spring.mail.* из env
+        if (!force && !"smtp".equalsIgnoreCase(mode)) {
+            return null;
         }
+        return mailSenderProvider.getIfAvailable();
+    }
+
+    private JavaMailSenderImpl buildFromSettings() {
+        JavaMailSenderImpl impl = new JavaMailSenderImpl();
+        impl.setHost(settings.getOrDefault("smtp.host", ""));
+        impl.setPort(settings.getIntOrDefault("smtp.port", 465));
+        impl.setUsername(settings.getOrDefault("smtp.username", ""));
+        String pwd = settings.getSmtpPasswordDecrypted(pii);
+        impl.setPassword(pwd);
+        impl.setDefaultEncoding("UTF-8");
+
+        boolean ssl = settings.getBoolOrDefault("smtp.ssl", true);
+        Properties props = impl.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.connectiontimeout", "5000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
+        if (ssl) {
+            props.put("mail.smtp.ssl.enable", "true");
+        } else {
+            props.put("mail.smtp.starttls.enable", "true");
+        }
+        return impl;
+    }
+
+    private String resolveFrom() {
+        String fromDb = settings.getOrDefault("smtp.from", "");
+        return fromDb.isBlank() ? fromEnv : fromDb;
     }
 }

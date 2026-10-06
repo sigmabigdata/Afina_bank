@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.example.ukep.entity.AppSetting;
 import ru.example.ukep.repository.AppSettingRepository;
+import ru.example.ukep.security.PiiEncryptor;
 
 import java.time.Instant;
 import java.util.List;
@@ -84,5 +85,26 @@ public class SettingsService {
     /** Программный сброс кэша (например, после миграции). */
     public void invalidateCache() {
         cache.clear();
+    }
+
+    // ==================== SMTP helpers ====================
+
+    /** Вернуть пароль SMTP расшифрованным (он хранится AES-GCM). */
+    public String getSmtpPasswordDecrypted(PiiEncryptor pii) {
+        String stored = getOrDefault("smtp.password", "");
+        if (stored.isBlank()) return "";
+        return pii.decrypt(stored);
+    }
+
+    /** Сохранить пароль SMTP в зашифрованном виде. */
+    public void setSmtpPasswordEncrypted(String plaintext, PiiEncryptor pii, String by) {
+        if (plaintext == null) return;
+        String enc = plaintext.isBlank() ? "" : pii.encrypt(plaintext);
+        set("smtp.password", enc, by);
+    }
+
+    /** Проверить, заданы ли SMTP-настройки в БД (хотя бы host). */
+    public boolean isSmtpConfigured() {
+        return !getOrDefault("smtp.host", "").isBlank();
     }
 }
