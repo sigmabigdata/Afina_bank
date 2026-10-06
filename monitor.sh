@@ -22,7 +22,17 @@ set +a
 LOG="logs/monitor.log"
 STATE="logs/monitor.state"
 DOMAIN="${APP_DOMAIN:-}"
-MAIL_TO="${MONITOR_MAIL_TO:-$MAIL_FROM}"
+
+# Email для алертов: сначала из БД (app_settings), потом из .env
+MAIL_TO=""
+if docker exec afina-postgres psql -U postgres -d afina_db -t -A \
+        -c "SELECT value FROM app_settings WHERE key = 'monitor.mail_to'" 2>/dev/null \
+        | grep -q '@'; then
+    MAIL_TO=$(docker exec afina-postgres psql -U postgres -d afina_db -t -A \
+        -c "SELECT value FROM app_settings WHERE key = 'monitor.mail_to'" 2>/dev/null \
+        | tr -d '[:space:]')
+fi
+[ -z "$MAIL_TO" ] && MAIL_TO="${MONITOR_MAIL_TO:-$MAIL_FROM}"
 
 mkdir -p logs
 
@@ -74,7 +84,7 @@ log "✗ Сбой #${fails}: ${fail_reasons}"
 # Алерт после 3 подряд
 if [ "$fails" -eq 3 ]; then
     log "▶ Отправка алерта на ${MAIL_TO}"
-    python3 - <<PYEOF >> "$LOG" 2>&1
+    MAIL_TO="$MAIL_TO" FAIL_REASONS="$fail_reasons" python3 - <<PYEOF >> "$LOG" 2>&1
 import smtplib, ssl, sys, os
 from email.mime.text import MIMEText
 
