@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Афина · Админ · Мониторинг</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/monitor}" class="active">Мониторинг</a>
+        <a th:href="@{/admin/settings}">Настройки</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <div class="sys-head">
+        <h1>Мониторинг</h1>
+        <div class="sys-actions">
+            <form method="post" th:action="@{/admin/monitor/check-now}" style="display:inline">
+                <button type="submit" class="btn">↻ Проверить сейчас</button>
+            </form>
+            <form method="post" th:action="@{/admin/monitor/reset-counter}" style="display:inline">
+                <button type="submit" class="btn-ghost">Сбросить счётчик</button>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${ok}" class="alert ok" th:text="${ok}"></div>
+    <div th:if="${err}" class="alert err" th:text="${err}"></div>
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Статус</div>
+            <div class="metric-value-small">
+                <span th:if="${enabled}" class="badge ok">Включён</span>
+                <span th:unless="${enabled}" class="badge warn">Выключен</span>
+            </div>
+            <div class="metric-sub">проверка раз в 5 минут</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Сбоев подряд</div>
+            <div class="metric-value" th:text="${fails}">0</div>
+            <div class="metric-sub">алерт при достижении 3</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Алертов отправлено</div>
+            <div class="metric-value-small" th:text="${totalFail}">0</div>
+            <div class="metric-sub" th:text="'OK проверок: ' + ${totalOk}">—</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Email для алертов</div>
+            <div class="metric-value-small" th:text="${mailTo} ?: '(не задан)'">—</div>
+            <div class="metric-sub">
+                <a th:href="@{/admin/settings}">изменить →</a>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Последний алерт</div>
+            <div class="metric-value-small" th:text="${lastAlert}">—</div>
+        </div>
+    </div>
+
+    <section class="panel">
+        <h2>История проверок (последние 100)</h2>
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Время</th>
+                <th>Статус</th>
+                <th>Причина</th>
+                <th>Алерт</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="e : ${events}">
+                <td th:text="${#temporals.format(e.checkedAt,'dd.MM.yy HH:mm:ss')}">—</td>
+                <td>
+                    <span th:if="${e.status == 'OK'}" class="badge ok">OK</span>
+                    <span th:if="${e.status == 'FAIL'}" class="badge err">FAIL</span>
+                </td>
+                <td th:text="${e.reason} ?: '—'">—</td>
+                <td>
+                    <span th:if="${e.alertSent}" class="badge warn">отправлен</span>
+                    <span th:unless="${e.alertSent}" class="muted small">—</span>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(events)}">
+                <td colspan="4" class="muted center">
+                    Проверок пока не было. Cron запустит их в течение 5 минут,
+                    либо нажмите «Проверить сейчас».
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

@@ -30,6 +30,45 @@ public class EmailService {
         this.mailSenderProvider = mailSenderProvider;
     }
 
+    /**
+     * Алерт мониторинга: сервис недоступен.
+     */
+    public void sendAlert(String to, int failCount, String reason) {
+        String subject = "Афина · Сервис недоступен";
+        String body = """
+                Обнаружена проблема с сервисом.
+
+                Причина: %s
+                Сбоев подряд: %d
+
+                Проверьте сервер:
+                  ssh afina-vps
+                  cd /opt/afina
+                  docker compose -f docker-compose-prod.yml --env-file .env.prod ps
+                  docker compose -f docker-compose-prod.yml --env-file .env.prod logs app --tail 50
+                """.formatted(reason, failCount);
+
+        JavaMailSender sender = mailSenderProvider.getIfAvailable();
+        if (!"smtp".equalsIgnoreCase(mode) || sender == null) {
+            log.warn("[DEV-ALERT] to={}, subject={}, body=\n{}", to, subject, body);
+            return;
+        }
+
+        try {
+            MimeMessage msg = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(body, false);
+            sender.send(msg);
+            log.info("Alert email sent to {}", to);
+        } catch (Exception e) {
+            log.error("Не удалось отправить alert на {}", to, e);
+            throw new RuntimeException("SMTP: " + e.getMessage(), e);
+        }
+    }
+
     public void sendLoginLink(String to, String loginUrl) {
         String subject = "Афина · Ссылка для входа";
         String body = """
