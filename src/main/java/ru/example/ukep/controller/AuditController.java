@@ -58,7 +58,7 @@ public class AuditController {
 
         int safeLimit = Math.min(Math.max(limit, 10), 2000);
 
-        log.debug("audit filter: type='{}' actor='{}' result='{}' from={} to={}",
+        log.info("audit filter: type='{}' actor='{}' result='{}' from={} to={}",
                 type, actor, result, from, to);
         List<AuditEvent> filtered = filterInMemory(type, actor, result, from, to);
         List<AuditEvent> page = filtered.stream().limit(safeLimit).toList();
