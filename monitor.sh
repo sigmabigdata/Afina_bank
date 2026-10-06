@@ -106,7 +106,10 @@ msg["Subject"] = subject
 msg["From"] = from_
 msg["To"] = to
 
+# Внутренний SMTP с самоподписанным сертификатом — отключаем верификацию
 ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
 with smtplib.SMTP_SSL(host, port, context=ctx, timeout=15) as s:
     s.login(user, pwd)
     s.send_message(msg)
