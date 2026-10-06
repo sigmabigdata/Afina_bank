@@ -163,12 +163,7 @@
                         <div style="margin-top:4px">
                             <a th:href="@{'/admin/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/download'}"
                                class="btn-sig btn-sm" title="Скачать подпись">⬇ .sig</a>
-                            <form method="post"
-                                  th:action="@{'/admin/documents/' + ${d.id} + '/signatures/' + ${sig.id} + '/delete'}"
-                                  onsubmit="return confirm('Удалить подпись?');"
-                                  style="display:inline">
-                                <button type="submit" class="link danger" title="Удалить">🗑</button>
-                            </form>
+                            
                         </div>
                     </div>
                 </div>
@@ -179,13 +174,14 @@
                    target="_blank" title="Просмотреть">👁</a>
                 <a th:href="@{'/admin/documents/' + ${d.id} + '/download'}"
                    title="Скачать документ">⬇</a>
-                <button type="button" class="btn-sign" th:attr="data-id=${d.id}"
+                <button th:if="${not d.signatures.?[signerUser != null and signerUser.role.name() == 'ROLE_ADMIN'].size() > 0}"
+                        type="button" class="btn-sign" th:attr="data-id=${d.id}"
                         title="Подписать">✍</button>
                 <a th:if="${d.signed}"
                    th:href="@{'/admin/documents/' + ${d.id} + '/signature/download'}"
                    title="Скачать подпись">📎</a>
 
-                <form method="post"
+                <form th:unless="${d.signed}" method="post"
                       th:action="@{'/admin/documents/' + ${d.id} + '/delete'}"
                       onsubmit="return confirm('Удалить документ? Действие необратимо.');"
                       style="display:inline">

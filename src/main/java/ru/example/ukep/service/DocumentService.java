@@ -57,6 +57,10 @@ public class DocumentService {
     @Transactional
     public void deleteAsAdmin(Long id) throws IOException {
         Document doc = getById(id);
+        if (doc.isSigned()) {
+            throw new IllegalArgumentException(
+                    "Нельзя удалить подписанный документ — юридически значимый артефакт");
+        }
         Files.deleteIfExists(storageRoot.resolve(doc.getStoredName()));
         documentRepository.delete(doc);
     }
@@ -90,6 +94,10 @@ public class DocumentService {
     @Transactional
     public void delete(Long id, User owner) throws IOException {
         Document doc = getOwned(id, owner);
+        if (doc.isSigned()) {
+            throw new IllegalArgumentException(
+                    "Нельзя удалить подписанный документ. Обратитесь к администратору.");
+        }
         Files.deleteIfExists(storageRoot.resolve(doc.getStoredName()));
         documentRepository.delete(doc);
     }
@@ -122,6 +130,12 @@ public class DocumentService {
         Document doc = documentRepository.findById(docId)
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
 
+        // Проверка: этот пользователь уже подписал?
+        if (signatureRepository.existsByDocumentIdAndSignerUserId(docId, signer.getId())) {
+            throw new IllegalArgumentException(
+                    "Вы уже подписали этот документ. Повторное подписание невозможно.");
+        }
+
         DocumentSignature sig = new DocumentSignature();
         sig.setDocument(doc);
         sig.setSignatureBase64(signatureBase64);
@@ -153,21 +167,11 @@ public class DocumentService {
         return signatureRepository.findAllByDocumentIdOrderBySignedAtAsc(documentId);
     }
 
-    /** Удалить подпись. */
+    /** Удаление подписей запрещено. */
     @Transactional
     public void deleteSignature(Long signatureId) {
-        DocumentSignature sig = getSignature(signatureId);
-        Document doc = sig.getDocument();
-        signatureRepository.delete(sig);
-
-        // Если больше нет подписей — сбросить флаг
-        if (signatureRepository.countByDocumentId(doc.getId()) == 0) {
-            doc.setSigned(false);
-            doc.setSignedAt(null);
-            doc.setSignerSubject(null);
-            doc.setSignerSerial(null);
-            documentRepository.save(doc);
-        }
+        throw new IllegalArgumentException(
+                "Удаление подписей невозможно — юридически значимая информация");
     }
 
     /** Legacy-метод для совместимости. */

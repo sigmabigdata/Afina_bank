@@ -8,4 +8,5 @@ import java.util.List;
 public interface DocumentSignatureRepository extends JpaRepository<DocumentSignature, Long> {
     List<DocumentSignature> findAllByDocumentIdOrderBySignedAtAsc(Long documentId);
     long countByDocumentId(Long documentId);
+    boolean existsByDocumentIdAndSignerUserId(Long documentId, Long signerUserId);
 }
