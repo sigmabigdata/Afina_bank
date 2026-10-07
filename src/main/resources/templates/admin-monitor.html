@@ -78,6 +78,50 @@
     </div>
 
     <section class="panel">
+        <h2>Рассылка email (24 часа)</h2>
+        <div class="metrics-grid" style="margin-bottom:0;">
+            <div class="metric-card">
+                <div class="metric-icon">✉</div>
+                <div class="metric-label">Отправлено</div>
+                <div class="metric-value" th:text="${emailSent24h}">0</div>
+                <div class="metric-sub">за 24 часа</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">⚠</div>
+                <div class="metric-label">Ошибок</div>
+                <div class="metric-value" th:text="${emailFailed24h}"
+                     th:classappend="${emailFailed24h > 0} ? 'err' : ''">0</div>
+                <div class="metric-sub">за 24 часа</div>
+            </div>
+        </div>
+
+        <h3 style="margin-top:22px;">Последние ошибки отправки</h3>
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Время</th>
+                <th>Получатель</th>
+                <th>Тема</th>
+                <th>Ошибка</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="e : ${emailErrors}">
+                <td class="small"
+                    th:text="${#temporals.format(e.eventTime,'dd.MM HH:mm')}">—</td>
+                <td class="small" th:text="${e.actorEmail}">—</td>
+                <td class="small" th:text="${e.targetInfo} ?: '—'">—</td>
+                <td class="small muted" th:text="${e.details} ?: '—'">—</td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(emailErrors)}">
+                <td colspan="4" class="muted center">Ошибок отправки нет</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+
+    <section class="panel">
         <h2>История проверок (последние 100)</h2>
         <table class="docs">
             <thead>

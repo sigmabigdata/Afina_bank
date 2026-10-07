@@ -1,5 +1,6 @@
 package ru.example.ukep.service;
 
+
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ public class EmailService {
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final SettingsService settings;
     private final PiiEncryptor pii;
+    private final AuditService audit;
 
     @Value("${app.mail.mode:log}")
     private String mode;
@@ -31,10 +33,12 @@ public class EmailService {
 
     public EmailService(ObjectProvider<JavaMailSender> mailSenderProvider,
                         SettingsService settings,
-                        PiiEncryptor pii) {
+                        PiiEncryptor pii,
+                        AuditService audit) {
         this.mailSenderProvider = mailSenderProvider;
         this.settings = settings;
         this.pii = pii;
+        this.audit = audit;
     }
 
     public void sendLoginLink(String to, String loginUrl) {
@@ -103,6 +107,7 @@ public class EmailService {
                     {}
                     ============================================================
                     """, to, subject, body);
+            audit.event("EMAIL_SENT", "SUCCESS", to, null, "EMAIL", null, subject, "dev-mode");
             return;
         }
 
@@ -116,9 +121,11 @@ public class EmailService {
             helper.setText(body, false);
             sender.send(msg);
             log.info("Email sent to {} (from {})", to, from);
+            audit.event("EMAIL_SENT", "SUCCESS", to, null, "EMAIL", null, subject, null);
         } catch (Exception e) {
             log.error("Не удалось отправить письмо на {}", to, e);
             log.warn("[FALLBACK-MAIL] Кому: {}, subject: {}\n{}", to, subject, body);
+            audit.event("EMAIL_FAIL", "FAIL", to, null, "EMAIL", null, subject, e.getMessage());
             throw new RuntimeException("SMTP: " + e.getMessage(), e);
         }
     }

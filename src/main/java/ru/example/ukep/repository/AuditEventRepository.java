@@ -33,6 +33,15 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
 
     long countByEventTypeAndResult(String eventType, String result);
 
+    long countByEventTypeAndEventTimeAfter(String eventType, Instant after);
+    long countByEventTypeAndResultAndEventTimeAfter(String eventType, String result, Instant after);
+
+    @Query("select e from AuditEvent e where e.eventType = :type " +
+           "and e.result = :result order by e.eventTime desc")
+    List<AuditEvent> findRecentByTypeAndResult(@Param("type") String type,
+                                                @Param("result") String result,
+                                                Pageable pageable);
+
     /** Удаление старых событий (retention policy). */
     long deleteByEventTimeBefore(Instant cutoff);
 

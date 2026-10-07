@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.example.ukep.entity.MonitorEvent;
+import ru.example.ukep.repository.AuditEventRepository;
 import ru.example.ukep.repository.MonitorEventRepository;
 import ru.example.ukep.service.MonitoringService;
 import ru.example.ukep.service.SettingsService;
@@ -21,13 +22,16 @@ public class MonitorController {
     private final MonitorEventRepository events;
     private final SettingsService settings;
     private final MonitoringService monitoring;
+    private final AuditEventRepository auditEvents;
 
     public MonitorController(MonitorEventRepository events,
                              SettingsService settings,
-                             MonitoringService monitoring) {
+                             MonitoringService monitoring,
+                             AuditEventRepository auditEvents) {
         this.events = events;
         this.settings = settings;
         this.monitoring = monitoring;
+        this.auditEvents = auditEvents;
     }
 
     @GetMapping
@@ -40,6 +44,19 @@ public class MonitorController {
         model.addAttribute("enabled", settings.getBoolOrDefault("monitor.enabled", true));
         model.addAttribute("totalFail", events.countByStatus("FAIL"));
         model.addAttribute("totalOk", events.countByStatus("OK"));
+
+        // Статистика email за 24 часа
+        java.time.Instant dayAgo = java.time.Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS);
+        long sent = auditEvents.countByEventTypeAndEventTimeAfter("EMAIL_SENT", dayAgo);
+        long failed = auditEvents.countByEventTypeAndResultAndEventTimeAfter("EMAIL_FAIL", "FAIL", dayAgo);
+        model.addAttribute("emailSent24h", sent);
+        model.addAttribute("emailFailed24h", failed);
+
+        // Последние 10 ошибок email
+        java.util.List<ru.example.ukep.entity.AuditEvent> lastErrors = auditEvents
+                .findRecentByTypeAndResult("EMAIL_FAIL", "FAIL",
+                        org.springframework.data.domain.PageRequest.of(0, 10));
+        model.addAttribute("emailErrors", lastErrors);
         return "admin-monitor";
     }
 
