@@ -21,7 +21,7 @@ public class DocumentSignature {
     @Column(nullable = false)
     private Instant signedAt = Instant.now();
 
-    @Column(length = 500)
+    @Column(name = "signer_subject_enc", length = 1000)
     private String signerSubject;
 
     @Column(length = 100)
