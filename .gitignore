@@ -40,3 +40,17 @@ secrets/
 caddy-certs/*.pem
 caddy-certs/*.key
 caddy-certs/*.crt
+
+# Бэкапы БД и файлов (не хранить в git)
+backups/
+*.sql.gz
+storage_*.tar.gz
+
+# Локальные CRL (скачиваются автоматически)
+crls/*.crl
+!crls/.gitkeep
+
+# Старые версии файлов
+*.bak
+*.bak.*
+*.backup
