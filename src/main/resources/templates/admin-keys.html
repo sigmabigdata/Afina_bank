@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Афина · Админ · Ключи</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="admin-header">
+    <a th:href="@{/admin}" class="brand">
+        <span class="brand-mark">Α</span>
+        <span class="brand-text">Афина</span>
+    </a>
+    <nav class="admin-nav">
+        <a th:href="@{/admin}">Дашборд</a>
+        <a th:href="@{/admin/users}">Клиенты</a>
+        <a th:href="@{/admin/system}">Система</a>
+        <a th:href="@{/admin/monitor}">Мониторинг</a>
+        <a th:href="@{/admin/crl}">CRL</a>
+        <a th:href="@{/admin/audit}">Аудит</a>
+        <a th:href="@{/admin/keys}" class="active">Ключи</a>
+        <a th:href="@{/admin/settings}">Настройки</a>
+    </nav>
+    <form method="post" th:action="@{/admin/logout}" style="display:inline">
+        <button class="btn-ghost" type="submit">Выйти</button>
+    </form>
+</header>
+
+<main>
+    <div class="sys-head">
+        <h1>Ключи шифрования</h1>
+        <div class="sys-actions">
+            <a th:href="@{/admin/keys/download}" class="btn">
+                ⬇ Скачать бэкап (ZIP)
+            </a>
+        </div>
+    </div>
+
+    <div class="alert err" style="font-size:14px;">
+        <b>⚠️ Критически важные файлы.</b>
+        Если потерять эти ключи — <b>расшифровать данные невозможно</b>
+        ни через поддержку, ни через ФСБ, ни через космос.<br>
+        Скачайте бэкап и сохраните его в <b>менеджере паролей</b> (1Password,
+        KeePass) + на бумаге в сейфе. <b>Три копии в трёх разных местах.</b>
+    </div>
+
+    <section class="panel">
+        <h2>Файлы ключей</h2>
+        <table class="docs">
+            <thead>
+            <tr>
+                <th>Ключ</th>
+                <th>Назначение</th>
+                <th>Размер</th>
+                <th>Изменён</th>
+                <th>Права</th>
+                <th>Владелец</th>
+                <th>Проблемы</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="k : ${keys}">
+                <td>
+                    <b th:text="${k.name}">file.key</b>
+                    <div class="muted small" th:text="${k.path}">/opt/afina/secrets/file.key</div>
+                </td>
+                <td class="small" th:text="${k.description}">—</td>
+                <td class="small">
+                    <span th:if="${k.exists}" th:text="${k.sizeBytes} + ' B'">—</span>
+                    <span th:unless="${k.exists}" class="badge err">нет</span>
+                </td>
+                <td class="small" th:text="${k.modifiedAt}">—</td>
+                <td class="small">
+                    <code th:text="${k.permissions}">-</code>
+                </td>
+                <td class="small" th:text="${k.owner}">—</td>
+                <td class="small">
+                    <span th:if="${k.problem == null}" class="badge ok">✓</span>
+                    <span th:if="${k.problem != null}" class="badge err"
+                          th:text="${k.problem}">Ошибка</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Что делать при передаче клиенту</h2>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div>
+                <h3 style="margin-top:0;">Вариант 1: клиент генерирует сам (рекомендуется)</h3>
+                <p class="muted small">
+                    При первом развёртывании клиент выполняет на своём сервере:
+                </p>
+                <pre style="background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow-x:auto;">mkdir -p /opt/afina/secrets
+openssl rand -base64 32 > /opt/afina/secrets/file.key
+openssl rand -base64 32 > /opt/afina/secrets/pii.key
+chown -R 999:999 /opt/afina/secrets
+chmod 600 /opt/afina/secrets/*.key</pre>
+                <p class="muted small">
+                    Ключи никогда не покидают его сервер. Ты их не видишь.
+                    Клиент хранит их сам.
+                </p>
+            </div>
+
+            <div>
+                <h3 style="margin-top:0;">Вариант 2: ты генерируешь и передаёшь</h3>
+                <p class="muted small">
+                    Только через <b>два разных защищённых канала</b>:
+                </p>
+                <ul class="small muted">
+                    <li>Архив ключей — email / SFTP</li>
+                    <li>Пароль от архива — SMS / голосом / другой мессенджер</li>
+                </ul>
+                <p class="muted small">
+                    <b>Никогда</b> в одном канале. Если канал перехватят — данные открыты.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Правила хранения</h2>
+        <table class="kv-table">
+            <tr><td class="kv-key">✅ Можно</td><td>Менеджер паролей (1Password, KeePass) с мастер-паролем</td></tr>
+            <tr><td class="kv-key">✅ Можно</td><td>Бумага в сейфе (переписать base64 руками)</td></tr>
+            <tr><td class="kv-key">✅ Можно</td><td>Зашифрованный архив на флешке в сейфе</td></tr>
+            <tr><td class="kv-key">✅ Можно</td><td>S3 с шифрованием (если политика позволяет)</td></tr>
+            <tr><td class="kv-key" style="color:#a82323;">❌ Нельзя</td><td>В git (даже в приватный репозиторий)</td></tr>
+            <tr><td class="kv-key" style="color:#a82323;">❌ Нельзя</td><td>В .env файлы</td></tr>
+            <tr><td class="kv-key" style="color:#a82323;">❌ Нельзя</td><td>В бэкап БД рядом с дампом</td></tr>
+            <tr><td class="kv-key" style="color:#a82323;">❌ Нельзя</td><td>В открытых мессенджерах без E2E</td></tr>
+            <tr><td class="kv-key" style="color:#a82323;">❌ Нельзя</td><td>В одном канале с зашифрованным архивом</td></tr>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Опасные действия</h2>
+        <div class="alert err">
+            <b>Перезапись ключей.</b> Если файл ключа заменить новым — все данные,
+            зашифрованные старым ключом, станут недоступны. <b>Безвозвратно.</b><br>
+            Никакой утилиты для ротации пока нет. Ключ = жизнь данных.
+        </div>
+    </section>
+</main>
+</body>
+</html>
