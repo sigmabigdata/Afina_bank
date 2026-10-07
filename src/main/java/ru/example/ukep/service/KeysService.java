@@ -9,13 +9,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Информация о ключах шифрования (file.key, pii.key).
@@ -28,14 +28,17 @@ public class KeysService {
 
     private final Path fileKeyPath;
     private final Path piiKeyPath;
+    private final SettingsService settings;
 
     public KeysService(
             @Value("${app.file-encryption-key-path:/opt/afina/secrets/file.key}")
             String fileKey,
             @Value("${app.pii-key-path:/opt/afina/secrets/pii.key}")
-            String piiKey) {
+            String piiKey,
+            SettingsService settings) {
         this.fileKeyPath = Path.of(fileKey);
         this.piiKeyPath = Path.of(piiKey);
+        this.settings = settings;
     }
 
     public record KeyInfo(
@@ -50,18 +53,41 @@ public class KeysService {
             String problem
     ) {}
 
+    /** Дата последнего скачивания бэкапа (ISO Instant или null). */
+    public Instant getLastBackupAt() {
+        String v = settings.getOrDefault("keys.last_backup_at", "");
+        if (v.isBlank()) return null;
+        try { return Instant.parse(v); } catch (Exception e) { return null; }
+    }
+
+    public long getDownloadCount() {
+        return Long.parseLong(settings.getOrDefault("keys.download_count", "0"));
+    }
+
+    public long daysSinceLastBackup() {
+        Instant last = getLastBackupAt();
+        if (last == null) return -1;
+        return ChronoUnit.DAYS.between(last, Instant.now());
+    }
+
+    /** Записать факт скачивания бэкапа. */
+    public void recordBackupDownload(String by) {
+        settings.set("keys.last_backup_at", Instant.now().toString(), by);
+        long count = getDownloadCount() + 1;
+        settings.set("keys.download_count", String.valueOf(count), by);
+    }
+
     public List<KeyInfo> listAll() {
         List<KeyInfo> result = new ArrayList<>();
-        result.add(inspect("file.key", "Шифрование файлов документов (AES-256-GCM)", fileKeyPath));
-        result.add(inspect("pii.key", "Шифрование персональных данных (AES-256-GCM)", piiKeyPath));
+        result.add(inspect("file.key", "Файлы документов (AES-256-GCM)", fileKeyPath));
+        result.add(inspect("pii.key", "Персональные данные: email, телефон, ФИО в документах (AES-256-GCM)", piiKeyPath));
         return result;
     }
 
     private KeyInfo inspect(String name, String description, Path path) {
         if (!Files.exists(path)) {
             return new KeyInfo(name, description, path.toString(),
-                    false, 0, "—", "—", "—",
-                    "Файл отсутствует");
+                    false, 0, "—", "—", "—", "Файл отсутствует");
         }
         try {
             long size = Files.size(path);
@@ -71,33 +97,30 @@ public class KeysService {
 
             String perms = "—";
             String owner = "—";
+            String problem = null;
+
             try {
                 PosixFileAttributes attrs = Files.readAttributes(path, PosixFileAttributes.class);
-                perms = String.format("%04o", 0); // placeholder
-                // Posix perms: грубо через Files.getPosixFilePermissions
-                var p = Files.getPosixFilePermissions(path);
-                StringBuilder sb = new StringBuilder();
-                for (var perm : p) sb.append(perm.name().charAt(0));
-                perms = sb.toString();
+                perms = PosixFilePermissions.toString(attrs.permissions());
                 owner = attrs.owner().getName() + ":" + attrs.group().getName();
+
+                if (!"rw-------".equals(perms)) {
+                    problem = "Права не 600 (текущие: " + perms + ")";
+                }
             } catch (UnsupportedOperationException ignored) {
-                // Windows
+                // Windows/не-POSIX
             }
 
-            String problem = null;
             if (size != 45) {
-                problem = "Размер не 45 байт (ожидается base64 от 32 байт)";
-            }
-            if (!perms.startsWith("r--------") && !perms.equals("rw-------")) {
-                problem = "Права отличаются от 600 (текущие: " + perms + ")";
+                problem = (problem != null ? problem + "; " : "")
+                        + "Размер не 45 байт (текущий: " + size + ")";
             }
 
             return new KeyInfo(name, description, path.toString(),
                     true, size, modifiedAt, perms, owner, problem);
         } catch (IOException e) {
             return new KeyInfo(name, description, path.toString(),
-                    false, 0, "—", "—", "—",
-                    "Ошибка чтения: " + e.getMessage());
+                    false, 0, "—", "—", "—", "Ошибка чтения: " + e.getMessage());
         }
     }
 

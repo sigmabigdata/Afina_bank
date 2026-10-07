@@ -40,6 +40,9 @@ public class KeysController {
     @GetMapping
     public String page(Model model) {
         model.addAttribute("keys", keys.listAll());
+        model.addAttribute("lastBackupAt", keys.getLastBackupAt());
+        model.addAttribute("downloadCount", keys.getDownloadCount());
+        model.addAttribute("daysSinceLastBackup", keys.daysSinceLastBackup());
         return "admin-keys";
     }
 
@@ -75,12 +78,12 @@ public class KeysController {
         }
 
         String zipName = "afina-keys-" + LocalDate.now() + ".zip";
-        log.warn("Key backup downloaded by {} ({} bytes)", auth != null ? auth.getName() : "unknown", baos.size());
-        if (auth != null) {
-            audit.event("KEYS_DOWNLOAD", "WARN", auth.getName(), "ROLE_ADMIN",
-                    "KEYS", "file.key+pii.key", zipName,
-                    "Скачан архив с ключами шифрования");
-        }
+        String who = auth != null ? auth.getName() : "unknown";
+        log.warn("Key backup downloaded by {} ({} bytes)", who, baos.size());
+        keys.recordBackupDownload(who);
+        audit.event("KEYS_DOWNLOAD", "WARN", who, "ROLE_ADMIN",
+                "KEYS", "file.key+pii.key", zipName,
+                "Скачан архив с ключами шифрования");
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
