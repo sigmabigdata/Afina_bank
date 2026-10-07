@@ -10,29 +10,56 @@
 1. [Возможности](#возможности)
 2. [Стек](#стек)
 3. [Требования](#требования)
-4. [Развёртывание на VPS](#развёртывание-на-vps)
-5. [Настройка после первого запуска](#настройка-после-первого-запуска)
-6. [Обслуживание](#обслуживание)
-7. [Настройка почты](#настройка-почты)
-8. [Замена логотипа](#замена-логотипа)
-9. [Типичные проблемы](#типичные-проблемы)
-10. [Инструкция для клиента](#инструкция-для-клиента)
-11. [Дополнительная документация](#дополнительная-документация)
+4. [Развёртывание](#развёртывание)
+5. [Настройка после запуска](#настройка-после-запуска)
+6. [Админ-панель](#админ-панель)
+7. [Безопасность](#безопасность)
+8. [Аудит и мониторинг](#аудит-и-мониторинг)
+9. [Обслуживание](#обслуживание)
+10. [CLI afina](#cli-afina)
+11. [Типичные проблемы](#типичные-проблемы)
+12. [Инструкция для клиента](#инструкция-для-клиента)
 
 ---
 
 ## Возможности
 
-- **Клиенты** входят по одноразовой ссылке (magic-link) на email
-- **Администраторы** входят по УКЭП-сертификату (challenge-response + подпись)
-- Загрузка и просмотр документов (PDF, DOCX, изображения и т.п.)
-- Подписание документов УКЭП (CAdES-BES detached)
+### Для клиентов
+- Вход по **одноразовой ссылке на email** (magic-link, TTL 10 часов)
+- Загрузка, просмотр, скачивание документов (PDF, DOCX, изображения)
+- **Подписание УКЭП** через плагин КриптоПро (CAdES-BES detached)
 - Несколько подписей на один документ
-- Админ-панель: управление клиентами, документами, бэкапами, система
-- **Шифрование файлов на диске**: AES-256-GCM
-- pgAudit для аудита действий в БД
-- Автоматические бэкапы БД и файлов
-- HTTPS через Caddy + Let's Encrypt
+- Скачивание подписи отдельно или архивом (ZIP: документ + подпись)
+
+### Для администраторов
+- Вход **по УКЭП-сертификату** (challenge-response, без пароля)
+- Управление клиентами: CRUD, блокировка, отправка ссылок
+- Просмотр документов и подписей клиентов, скачивание, подпись от имени админа
+
+### Безопасность
+- **Шифрование файлов** AES-256-GCM (`file.key`)
+- **Шифрование PII** (email, телефон, ФИО в документах) AES-256-GCM (`pii.key`)
+- **Email-hash** (SHA-256) для поиска без расшифровки
+- Проверка подписи: **BouncyCastle** chain building + CRL
+- **Авто-загрузка CRL** по CDP-URL из сертификатов
+- **Rate limiting** на `/login`, `/admin/challenge`, `/admin/cert-login`
+- **Запрет** удаления подписанных документов и подписей
+- **Запрет** повторного подписания одним пользователем
+
+### Аудит и мониторинг
+- **Журнал аудита** (`audit_events`): логины, CRUD, подписи, бэкапы, настройки
+- **Фильтры** по типу / пользователю / результату / дате, **экспорт CSV**
+- **Retention policy**: автоочистка старше 365 дней (настраивается)
+- **Мониторинг**: встроенный (`@Scheduled` 5 мин) + внешний (`monitor.sh` cron)
+- **Email-алерты** при недоступности (3 сбоя подряд)
+- **Статистика рассылки** за 24 часа
+
+### Управление
+- **Настройки в UI** (`/admin/settings`): SMTP, revocation-mode, rate-limit
+- **Ключи** (`/admin/keys`): статус, бэкап, правила хранения
+- **CRL** (`/admin/crl`): список, загрузка вручную, удаление
+- **Бэкапы** (`/admin/system`): создание, скачивание, восстановление
+- **CLI** `afina` — единая точка управления сервером
 
 ---
 
@@ -42,11 +69,15 @@
 |---|---|
 | Backend | Java 17, Spring Boot 3.2.5 |
 | БД | PostgreSQL 16 + Flyway + pgAudit + pg_stat_statements |
-| Криптография | КриптоПро CSP 5.0 + JCSP/JCP, BouncyCastle |
+| ORM | Spring Data JPA, Hibernate 6 |
+| Криптография УКЭП | BouncyCastle (chain, CRL), КриптоПро JCSP (ГОСТ) |
+| Шифрование данных | AES-256-GCM (JCE SunJCE) — `file.key`, `pii.key` |
+| Хэширование | SHA-256 (email-hash, phone-hash) |
 | Frontend | Thymeleaf, ванильный JS, плагин CryptoPro CAdES |
-| Шифрование файлов | AES-256-GCM (JCE, SunJCE provider) |
+| Мониторинг | Spring @Scheduled + shell-cron `monitor.sh` |
 | Инфраструктура | Docker Compose, Caddy 2 |
 | ОС | Ubuntu 22.04 / 24.04 LTS, x86_64 |
+| CLI | bash (`afina.sh`) |
 
 ---
 
@@ -54,59 +85,117 @@
 
 ### Сервер
 
-- **VPS** с Ubuntu 22.04 или 24.04 LTS, **x86_64** (ARM не подойдёт из-за CryptoPro)
-- Минимум: 2 vCPU, 4 GB RAM, 40 GB SSD
-- root или sudo
-- Открытые порты: 22 (SSH), 80 (HTTP), 443 (HTTPS)
-- **Домен** с A-записью на IP сервера (например `afina.example.ru`)
+| Параметр | Значение |
+|---|---|
+| ОС | Ubuntu 22.04 / 24.04 LTS |
+| Архитектура | **x86_64** (ARM не подойдёт из-за CryptoPro) |
+| CPU | 2 vCPU минимум |
+| RAM | 4 GB минимум |
+| Диск | 40 GB SSD минимум |
+| Права | root или sudo |
+| Порты | 22 (SSH), 80 (HTTP), 443 (HTTPS) |
+| Домен | A-запись на IP сервера |
+| Интернет | исходящий на github.com, letsencrypt.org, *.cryptopro.ru |
 
-### Что должно быть в репозитории
+### Что подготовить заранее
+
+Обязательные файлы (положить в `/opt/afina/` до развёртывания):
+
+| Файл | Что | Где взять |
+|---|---|---|
+| `admins.env` | Список админов `ФИО\|СНИЛС` | Ручной |
+| `certs/*.cer` | Корневые сертификаты УЦ | Сайт УЦ или из сертификатов клиентов |
+| `cryptopro-dist/linux-amd64_deb.tgz` | Дистрибутив КриптоПро CSP | Покупка у КриптоПро |
+
+Опционально:
+
+| Файл | Когда нужен |
+|---|---|
+| `.env.prod` | При ручном развёртывании (install.sh создаёт сам) |
+| `caddy-certs/fullchain.pem` + `privkey.pem` | Если свой SSL вместо Let's Encrypt |
 
 ---
 
-## Развёртывание на VPS
+## Развёртывание
 
-### 1. Подготовка сервера
+Два способа: **автоматический** (`install.sh`) и **ручной**.
+
+### Способ A. Автоматический (рекомендуется)
+
+**1. Зайти на VPS:**
+
+    ssh root@<IP-сервера>
+
+**2. Настроить DNS:** A-запись домена → IP сервера.
+Обязательно ДО запуска, иначе Let's Encrypt не получит сертификат.
+
+**3. Склонировать репозиторий:**
+
+    git clone git@github.com:sigmabigdata/Afina_bank.git /opt/afina
+    cd /opt/afina
+
+**4. Скопировать 3 обязательных файла** (с локальной машины):
+
+    scp admins.env         afina-vps:/opt/afina/
+    scp -r certs/          afina-vps:/opt/afina/
+    scp -r cryptopro-dist/ afina-vps:/opt/afina/
+
+**5. Запустить:**
+
+    sudo ./install.sh
+
+Скрипт спросит домен, SSL-режим, порты, SMTP; сгенерирует `.env.prod`,
+ключи шифрования, пароли БД; установит Docker, UFW, fail2ban; соберёт
+и запустит стек; настроит cron; поставит CLI `afina`.
+
+**6. Сохранить в менеджер паролей** пароли БД и ключи шифрования
+(скрипт покажет их в конце).
+
+### Способ B. Ручной
+
+**1. Подготовка сервера:**
 
     ssh root@<IP-сервера>
     apt update && apt upgrade -y
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
 
-### 2. Клонировать репозиторий
+**2. Склонировать репозиторий:**
 
     mkdir -p /opt/afina
     cd /opt/afina
     git clone git@github.com:sigmabigdata/Afina_bank.git .
 
-### 3. Разложить секреты
-
-Скопировать на сервер (с локальной машины):
+**3. Разложить секреты** (с MacBook):
 
     scp .env.prod          afina-vps:/opt/afina/
     scp admins.env         afina-vps:/opt/afina/
-    scp kontur-q-2025.crl  afina-vps:/opt/afina/
     scp -r certs/          afina-vps:/opt/afina/
     scp -r cryptopro-dist/ afina-vps:/opt/afina/
 
-Заполнить `.env.prod` на сервере (`nano .env.prod`):
+**4. Заполнить `.env.prod`:**
+
+    cd /opt/afina
+    nano .env.prod
+
+Минимум:
 
     APP_DOMAIN=afina.example.ru
     APP_BASE_URL=https://afina.example.ru
     SECURE_COOKIES=true
+    HTTP_PORT=80
+    HTTPS_PORT=443
+    TLS_MODE=letsencrypt
 
     DB_NAME=afina_db
     DB_SUPERUSER=postgres
-    DB_SUPERUSER_PASSWORD=<strong-random>
-
+    DB_SUPERUSER_PASSWORD=<random>
     DB_USER=afina_app
-    DB_PASSWORD=<strong-random>
-
+    DB_PASSWORD=<random>
     DB_MIGRATOR_USER=afina_migrator
-    DB_MIGRATOR_PASSWORD=<strong-random>
-
+    DB_MIGRATOR_PASSWORD=<random>
     DB_AUDITOR_USER=afina_auditor
-    DB_AUDITOR_PASSWORD=<strong-random>
+    DB_AUDITOR_PASSWORD=<random>
 
     ADMIN_IP_WHITELIST=127.0.0.1,::1,172.0.0.0/8
 
@@ -119,65 +208,49 @@
 
     CRYPTO_PRO_ENABLED=true
 
-Права: `chmod 600 .env.prod admins.env`
+Сгенерировать пароли: `openssl rand -base64 24`.
 
-### 4. Сгенерировать ключ шифрования
-
-**КРИТИЧНО:** без этого файла приложение не запустится.
+**5. Ключи шифрования (КРИТИЧНО):**
 
     cd /opt/afina
     mkdir -p secrets
     chmod 700 secrets
     openssl rand -base64 32 > secrets/file.key
+    openssl rand -base64 32 > secrets/pii.key
     chown -R 999:999 secrets
-    chmod 600 secrets/file.key
-    cat secrets/file.key
+    chmod 600 secrets/*.key
 
-Скопировать ключ на локальную машину:
+Сохранить оба ключа вне сервера (1Password, сейф).
+Без них данные не восстановить.
 
-    mkdir -p ~/afina-secrets
-    scp afina-vps:/opt/afina/secrets/file.key ~/afina-secrets/file.key.$(date +%Y%m%d)
-
-Положить копию в менеджер паролей. Без ключа зашифрованные файлы
-восстановить нельзя.
-
-### 5. Настроить DNS
+**6. DNS:**
 
     A    afina.example.ru       → <IP-сервера>
     A    www.afina.example.ru   → <IP-сервера>
 
-Проверить: `dig +short afina.example.ru`
+Проверить: `dig +short afina.example.ru`.
 
-### 6. Запустить развёртывание
+**7. Запуск:**
 
     cd /opt/afina
     sudo ./deploy.sh
 
-`deploy.sh` выполняет:
-
-1. Проверки окружения
-2. `apt update && upgrade`
-3. Установка Docker
-4. Firewall (UFW) и fail2ban
-5. Параметры ядра
-6. Создание каталогов (`storage/`, `logs/`, `backups/`)
-7. Сборка образа приложения
-8. Запуск стека
-9. Healthcheck
-10. Cron для ежедневного бэкапа (3:00)
+Скрипт делает: проверки окружения → apt update → Docker → UFW и
+fail2ban → параметры ядра → каталоги → сборка образа → запуск стека
+→ healthcheck → cron бэкапа.
 
 Продолжительность: 5–15 минут.
 
 ---
 
-## Настройка после первого запуска
+## Настройка после запуска
 
 ### 1. Проверить миграции Flyway
 
     docker exec afina-postgres psql -U postgres -d afina_db -c \
       "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"
 
-Ожидаемые версии:
+Актуальные миграции (V1–V14):
 
 | V | Описание |
 |---|---|
@@ -187,88 +260,246 @@
 | 4 | login token used at |
 | 5 | document signatures |
 | 6 | file encryption |
+| 7 | app settings |
+| 8 | monitor history |
+| 9 | pii user |
+| 10 | pii documents |
+| 11 | audit events |
+| 12 | audit retention |
+| 13 | smtp settings |
+| 14 | drop plaintext pii |
 
 У всех `success = t`.
 
-### 2. Настроить pgAudit
+### 2. Healthcheck
 
-    cd /opt/afina
-    sudo ./setup-db.sh
-
-### 3. Healthcheck
-
-    curl -s http://localhost:8080/actuator/health
-    # {"status":"UP"}
-
+    curl -s http://localhost:8080/actuator/health     # {"status":"UP"}
     curl -sI https://afina.example.ru/actuator/health | head -1
     # HTTP/2 200
 
-### 4. Проверить ключ шифрования
+### 3. Проверка ключей
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | grep -i FileEncryptor
+    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | \
+      grep -iE 'FileEncryptor|PiiEncryptor'
     # FileEncryptor: ключ загружен из /opt/afina/secrets/file.key
+    # PiiEncryptor:  ключ загружен из /opt/afina/secrets/pii.key
 
-### 5. Cron бэкапа
+### 4. Проверить SMTP
 
-    cat /etc/cron.d/afina-backup
+Открыть `/admin/settings` → блок «SMTP» → «Проверить SMTP» →
+отправить тестовое письмо. Проверить inbox.
 
-### 6. Firewall и fail2ban
+---
 
-    ufw status
-    systemctl status fail2ban
-    fail2ban-client status sshd
+## Админ-панель
+
+Все страницы доступны только с сервера (IP-whitelist). Извне —
+через SSH-туннель:
+
+    ssh -L 8080:localhost:8080 root@<IP-сервера>
+    # Открыть: http://localhost:8080/admin/login
+
+### Страницы
+
+| URL | Назначение |
+|---|---|
+| `/admin` | Дашборд: статистика клиентов и документов |
+| `/admin/users` | Список клиентов, поиск, фильтры |
+| `/admin/users/{id}` | Карточка клиента: ФИО, документы, подписи |
+| `/admin/system` | Метрики, бэкапы, диагностика, логи, restart |
+| `/admin/monitor` | История проверок, статистика рассылки |
+| `/admin/crl` | Управление CRL |
+| `/admin/audit` | Журнал аудита с фильтрами и CSV-экспортом |
+| `/admin/keys` | Статус ключей, скачивание бэкапа, правила |
+| `/admin/settings` | SMTP, revocation-mode, rate-limit, retention |
+
+### Добавление администратора
+
+    cd /opt/afina
+    nano admins.env
+    # Формат: ФИО|СНИЛС, например:
+    # Иванов Иван Иванович|12345678901
+
+    docker compose -f docker-compose-prod.yml --env-file .env.prod restart app
+
+Проверка:
+
+    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | \
+      grep -A5 "Администраторы"
+
+Запись в БД появится **после первого входа** через `/admin/login`.
+
+---
+
+## Безопасность
+
+### Ключи шифрования
+
+Два ключа в `/opt/afina/secrets/`:
+
+| Ключ | Что шифрует | Потеря = |
+|---|---|---|
+| `file.key` | Содержимое файлов документов | Все `.enc` файлы нечитаемы |
+| `pii.key` | Email, телефон, ФИО-в-документах в БД | PII в БД нечитаем |
+
+**Правила:**
+- Файлы должны иметь права `600`, владелец `999:999` (uid контейнера)
+- Никогда не перезаписывать (иначе старые данные не расшифруются)
+- Хранить 3 копии вне сервера: менеджер паролей + бумага в сейфе + флешка
+- Никогда не передавать по открытым каналам
+
+Управление: `/admin/keys` → скачать ZIP с бэкапом.
+
+### Проверка подписи
+
+Используется **BouncyCastle** (не JCSP):
+
+1. Парсинг CAdES-BES через `CMSSignedData`
+2. Криптопроверка подписи (BC, fallback JCSP для ГОСТ)
+3. **Chain building** вручную: leaf → intermediate → root
+4. Проверка корня в truststore (`/app/certs/*.cer`)
+5. Проверка отзыва по CRL из `/app/crls/`
+
+**Авто-загрузка CRL**: `CrlDownloader` извлекает CDP-URL из сертификата
+подписанта и скачивает в `/app/crls/auto-*.crl` (TTL 12 ч).
+Дедупликация по issuer — оставляется самый свежий.
+
+### Rate limiting
+
+`RateLimitFilter` (высший приоритет, работает до Spring Security):
+
+| Endpoint | Лимит |
+|---|---|
+| `POST /login` | 5 / 15 мин (IP+email) |
+| `GET /admin/challenge` | 10 / 15 мин (IP) |
+| `POST /admin/cert-login` | 5 / 15 мин (IP) |
+| `GET /login/confirm` | 20 / 15 мин (IP) |
+
+При превышении — `429 Too Many Requests` с `Retry-After`.
+
+### PII-шифрование
+
+| Поле | Хранение |
+|---|---|
+| `users.email` | `email_enc` (AES-GCM) + `email_hash` (SHA-256, unique) |
+| `users.phone` | `phone_enc` + `phone_hash` (nullable) |
+| `users.full_name` | Plaintext (для fuzzy-поиска) |
+| `documents.original_name` | `original_name_enc` (AES-GCM) |
+| `documents.signer_subject` | `signer_subject_enc` |
+| `document_signatures.signer_subject` | `signer_subject_enc` |
+
+JPA `@Convert` (`PiiStringConverter`) шифрует прозрачно.
+
+### Защита от удаления
+
+- **Клиент** не может удалить подписанный документ → 400
+- **Клиент** не может удалить подпись → 400
+- **Клиент** не может подписать один документ дважды
+- **Админ** может удалить подписанный документ (с записью в audit)
+- **Админ** не может удалить подписи
+
+---
+
+## Аудит и мониторинг
+
+### Журнал аудита (`/admin/audit`)
+
+Все важные события пишутся в `audit_events`:
+
+- `LOGIN_SUCCESS`, `LOGIN_FAIL` — клиенты
+- `ADMIN_LOGIN_SUCCESS`, `ADMIN_LOGIN_FAIL` — админы
+- `USER_CREATE`, `USER_UPDATE`, `USER_DELETE`
+- `DOC_UPLOAD`, `DOC_DELETE`
+- `SIGN_SUCCESS`, `SIGN_FAIL`
+- `SIGNATURE_DELETE_ATTEMPT` — попытки обхода
+- `EMAIL_SENT`, `EMAIL_FAIL`
+- `BACKUP_CREATE`, `BACKUP_RESTORE`
+- `APP_RESTART`, `SETTINGS_UPDATE`, `KEYS_DOWNLOAD`
+- `RATE_LIMIT` — превышения лимитов
+
+Фильтры: тип / пользователь / результат / диапазон дат.
+Экспорт: CSV (с BOM для Excel).
+Retention: `audit.retention_days` (по умолчанию 365), автоочистка в 04:00.
+
+### Мониторинг (`/admin/monitor`)
+
+- История проверок `monitor_events`
+- Счётчик сбоев подряд
+- Кнопка «Проверить сейчас»
+- Кнопка «Сбросить счётчик»
+- Статистика рассылки email за 24 часа
+- Последние 10 ошибок SMTP
+
+**Два механизма:**
+
+1. **Внутренний** (`MonitoringService` в Spring, каждые 5 мин) —
+   проверяет `/actuator/health` изнутри, пишет в `monitor_events`.
+2. **Внешний** (`monitor.sh` в cron, каждые 5 мин) — проверяет
+   контейнеры + HTTPS, шлёт email при 3 сбоях подряд.
+
+Оба используют `monitor.mail_to` из `/admin/settings`.
 
 ---
 
 ## Обслуживание
 
-### Бэкап (ручной)
+### Бэкап
 
-    cd /opt/afina
-    ./backup-prod.sh
+**Вручную:**
+
+    afina backup
+    # или
+    cd /opt/afina && ./backup-prod.sh
 
 Создаёт в `backups/`:
-
 - `afina_YYYYMMDD_HHMMSS.sql.gz` — дамп БД
 - `storage_YYYYMMDD_HHMMSS.tar.gz` — архив `storage/documents/` (уже зашифрован)
 
 Ротация: удаляются файлы старше 30 дней.
 
-### Восстановление из бэкапа
+**Автоматически:** cron `/etc/cron.d/afina-backup` ежедневно в 3:00.
 
-**Внимание:** заменяет все данные. Перед восстановлением автоматически
-создаётся safety-бэкап.
+### Восстановление
+
+**Через UI:** `/admin/system` → рядом с бэкапом кнопка «Восстановить».
+Требует ввести `RESTORE`. Перед восстановлением создаётся safety-бэкап.
+
+**Через CLI:**
 
     cd /opt/afina
     docker compose -f docker-compose-prod.yml --env-file .env.prod stop app
 
-    # БД
+    # Восстановить БД
     gunzip -c backups/afina_YYYYMMDD_HHMMSS.sql.gz | \
       docker exec -i afina-postgres psql -U postgres -d afina_db
 
-    # Владельцы и права
+    # Восстановить владельцев и права
     docker exec -i afina-postgres psql -U postgres -d afina_db <<'SQL'
     DO $$ DECLARE r RECORD;
     BEGIN
         FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
-            EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO afina_migrator';
+            EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename)
+                    || ' OWNER TO afina_migrator';
         END LOOP;
         FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname='public' LOOP
-            EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO afina_migrator';
+            EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename)
+                    || ' OWNER TO afina_migrator';
         END LOOP;
     END $$;
     SQL
 
-    # Файлы
+    # Восстановить файлы
     tar xzf backups/storage_YYYYMMDD_HHMMSS.tar.gz -C /opt/afina
 
-    # Запуск
+    # Запустить
     docker compose -f docker-compose-prod.yml --env-file .env.prod up -d app
 
-В UI админки (`/admin/system`) есть кнопки «Восстановить» и «Удалить»
-рядом с каждым бэкапом.
-
 ### Обновление приложения
+
+    cd /opt/afina
+    afina deploy
+
+Или вручную:
 
     cd /opt/afina
     git pull
@@ -279,228 +510,189 @@
 
 Flyway применит новые миграции автоматически.
 
-### Просмотр логов
-
-    # Приложение (стрим)
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs -f app
-
-    # Только ошибки
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | grep -iE 'ERROR|Exception'
-
-    # PostgreSQL
-    docker exec afina-postgres tail -50 /var/lib/postgresql/data/pg_log/postgresql-$(date +%F).log
-
-    # pgAudit
-    docker exec afina-postgres sh -c \
-      'tail -f /var/lib/postgresql/data/pg_log/postgresql-$(date +%F).log' | grep AUDIT
-
 ### Перезапуск
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod restart app
+    afina restart
+    # или через UI: /admin/system → «Перезапустить приложение»
 
-Или через UI: `/admin/system` → «Перезапустить приложение».
+### Логи
 
-### Добавление администратора
+    afina logs app -f              # в реальном времени
+    afina logs app                 # последние 200 строк
+    afina logs caddy
+    afina logs pg
 
-    cd /opt/afina
-    nano admins.env
-    # Формат: ФИО|СНИЛС
-    # Пример: Иванов Иван Иванович|12345678901
+### Cron-задачи
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod restart app
+    afina cron
 
-Проверка:
+Установленные задачи в `/etc/cron.d/`:
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | grep -A5 "Администраторы"
-
-Запись появится в БД только **после первого входа** через `/admin/login`.
-
-### Ротация ключа шифрования
-
-Полная процедура — см. `TECHNICAL.md`, раздел «Ротация ключа».
+| Файл | Расписание | Что делает |
+|---|---|---|
+| `afina-backup` | 3:00 ежедневно | Бэкап БД + файлов |
+| `afina-crl-cleanup` | вс 4:00 | Удаление auto-CRL старше 90 дней |
+| `afina-monitor` | каждые 5 мин | Внешний health-check + email-алерт |
+| `afina-ssl-check` | пн 9:00 | Проверка срока SSL |
 
 ---
 
-## Настройка почты
+## CLI afina
 
-Письма с magic-link отправляются через SMTP. Параметры — в `.env.prod`:
+Устанавливается в `/usr/local/bin/afina` (симлинк на `afina.sh`).
 
-    MAIL_MODE=smtp
-    MAIL_HOST=mail.example.ru
-    MAIL_PORT=465
-    MAIL_USERNAME=noreply@example.ru
-    MAIL_PASSWORD=<пароль>
-    MAIL_FROM=noreply@example.ru
-    MAIL_FROM_NAME=Афина
+    afina help
 
-- `MAIL_MODE=log` — письма пишутся в лог приложения (для dev)
-- `MAIL_MODE=smtp` — реальная отправка
-- `MAIL_FROM_NAME` — отображаемое имя отправителя (по умолчанию «Афина»)
-- Тема письма: `Афина · Ссылка для входа`
-
-После изменения `.env.prod` — перезапустить app:
-
-    docker compose -f docker-compose-prod.yml --env-file .env.prod restart app
-
-## Замена логотипа
-
-Логотип лежит в `src/main/resources/static/img/`:
-
-| Файл | Назначение |
+| Команда | Что делает |
 |---|---|
-| `logo.png` | Основной (636×120, прозрачный фон) |
-| `logo-2x.png` | Retina-версия для HiDPI |
+| `afina status` | Сводка: контейнеры, health, ключи, SSL |
+| `afina doctor` | Полная диагностика (11 проверок) |
+| `afina health` | Health local + external |
+| `afina up / down / restart` | Управление стеком |
+| `afina deploy` | git pull + rebuild + up |
+| `afina logs [app\|caddy\|pg] [-f]` | Логи |
+| `afina shell [app\|pg]` | Войти в контейнер |
+| `afina db "SQL"` | SQL-запрос на проде |
+| `afina backup` | Ручной бэкап |
+| `afina key` | Информация о ключах |
+| `afina audit [N]` | Последние N событий |
+| `afina users [search]` | Список клиентов |
+| `afina ssl` | Проверка SSL-сертификата |
+| `afina crl` | Список CRL |
+| `afina cron` | Cron-задачи |
+| `afina version` | Версия приложения |
 
-**Заменить логотип:**
-
-1. Подготовить PNG-файл с прозрачным фоном
-2. Уменьшить до высоты 120 px (ширина пропорционально)
-3. Положить в `src/main/resources/static/img/logo.png`
-4. Rebuild + restart:
-
-       docker compose -f docker-compose-prod.yml --env-file .env.prod build --no-cache app
-       docker compose -f docker-compose-prod.yml --env-file .env.prod up -d app
-
-**Где отображается:**
-
-- Шапка клиентского кабинета (`/dashboard`)
-- Шапка админки (`/admin/*`) — инвертируется через CSS-фильтр
-- Страницы логина (`/login`, `/admin/login`, `/login-sent`, `/error`)
-
-**CSS-классы:**
-
-- `.brand-logo` — логотип в шапке (40 px)
-- `.admin-header .brand-logo` — в тёмной шапке (38 px, инверсия)
-- `.auth-logo-img` — на страницах логина (72 px)
+---
 
 ## Типичные проблемы
 
-### Приложение не стартует: «Ключ шифрования не найден»
-
-Симптом в логах:
+### «Ключ шифрования не найден»
 
     java.lang.IllegalStateException: Ключ шифрования не найден: /opt/afina/secrets/file.key
 
-Причина: контейнер (uid=999) не может прочитать файл.
+**Причина:** контейнер (uid=999) не может прочитать файл.
 
-Решение:
+**Решение:**
 
     cd /opt/afina
     chown -R 999:999 secrets
     chmod 700 secrets
-    chmod 600 secrets/file.key
+    chmod 600 secrets/*.key
     docker compose -f docker-compose-prod.yml --env-file .env.prod restart app
 
 ### Caddy отдаёт 502 Bad Gateway
 
-Причина: приложение не запустилось или ещё стартует.
+**Причина:** приложение не запустилось или ещё стартует.
 
-Проверка:
+    afina logs app | tail -50
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod ps
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs app | tail -50
+**Ожидание:** после `Started UkepSignApplication` (~15 секунд) 502 пропадёт.
 
-Ожидание: после `Started UkepSignApplication` (~15 секунд) 502 пропадёт.
+### Caddy не получает Let's Encrypt
 
-### Caddy не получает сертификат Let's Encrypt
-
-Причины:
-
+**Причины:**
 - DNS не указывает на IP сервера (`dig +short afina.example.ru`)
 - Порт 80 закрыт (нужен для ACME-челленджа)
 - Rate limit LE (много выпусков за короткое время)
 
-Проверка:
+    afina logs caddy | tail -30
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod logs caddy | tail -30
+### Письма не приходят клиентам
 
-### Миграция legacy-файлов не работает
+**Причины:**
+- `From` не на домене SMTP-сервера (Gmail блокирует)
+- SPF/DKIM не настроены у хостера почты
+- Письмо в папке «Спам»
 
-Симптом: 0 зашифровано.
+**Проверка:**
+- `/admin/settings` → блок SMTP → «Проверить SMTP»
+- Логи: `afina logs app | grep -i EmailService`
+- Счётчик в `/admin/monitor` → «Рассылка email»
 
-Причина: app не остановлен, или неверный профиль.
+### Подпись не проходит: «is untrusted»
 
-Решение:
+**Причина:** отсутствует корневой сертификат УЦ в truststore.
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod stop app
-    docker compose -f docker-compose-prod.yml --env-file .env.prod run --rm \
-      -e SPRING_PROFILES_ACTIVE=prod,migrate app
-    docker compose -f docker-compose-prod.yml --env-file .env.prod up -d app
+**Решение:**
+1. Получить корневой `.cer` от УЦ
+2. Положить в `/opt/afina/certs/`
+3. `afina restart`
 
-### Файлы в storage/ остались без .enc
+Проверить, какой issuer нужен:
 
-Причина: код старой версии (до V6).
+    afina logs app | grep -i "chain built\|untrusted"
 
-Решение: убедиться, что `git log` показывает коммит `feat(crypto)...`,
-затем:
+### Файлы в storage/ не зашифрованы
 
-    docker compose -f docker-compose-prod.yml --env-file .env.prod build --no-cache app
-    docker compose -f docker-compose-prod.yml --env-file .env.prod up -d app
+**Причина:** старая версия кода.
+
+    cd /opt/afina
+    git log --oneline -5
+    afina deploy
+
+### Приложение не стартует: Schema-validation
+
+**Причина:** Entity рассинхронизирован с БД.
+
+    afina logs app | grep -i schema-validation
+
+Проверить `@Column(name=...)` в entity против реальных колонок:
+
+    afina db "\d users"
 
 ---
 
 ## Инструкция для клиента
 
-Клиенту (пользователю УКЭП) нужно настроить рабочее место.
-
 ### Требования
 
-- Windows 10/11, macOS 12+, или Linux (Chromium-Gost)
+- Windows 10/11, macOS 12+, Linux (Chromium-Gost)
 - Chrome / Yandex Browser / Chromium-Gost
-- Токен Рутокен ЭЦП 2.0 / 3.0 или Etoken
+- Токен Рутокен ЭЦП 2.0/3.0 или Etoken
 
-### Установка
+### Установка на компьютер
 
-1. **Драйвер токена**
-   - Рутокен: https://www.rutoken.ru/support/download/
-   - Etoken: https://www.safenet-inc.com/
+**1. Драйвер токена**
+- Рутокен: https://www.rutoken.ru/support/download/
+- Etoken: https://www.safenet-inc.com/
 
-2. **КриптоПро CSP 5.0** — https://www.cryptopro.ru/products/csp
-   - Установить от имени администратора
-   - Ввести лицензию
+**2. КриптоПро CSP 5.0** — https://www.cryptopro.ru/products/csp
+- Установить от имени администратора
+- Ввести лицензию
 
-3. **Плагин КриптоПро для браузера** — https://www.cryptopro.ru/products/cades/plugin
-   - Установить
-   - Включить расширение в браузере (`chrome://extensions`)
-   - Дать расширению доступ «на всех сайтах»
+**3. Плагин КриптоПро для браузера** — https://www.cryptopro.ru/products/cades/plugin
+- Установить
+- Включить расширение в `chrome://extensions`
+- Дать доступ «на всех сайтах»
 
-4. **Личный сертификат** — установить в хранилище «Личные»:
-   - Двойной клик по файлу `.cer` → «Установить сертификат»
-   - Или через КриптоПро → «Сертификаты» → «Установить»
+**4. Личный сертификат** — в хранилище «Личные»:
+- Двойной клик по `.cer` → «Установить сертификат»
 
-### Вход в систему
+### Вход
 
 1. Открыть `https://afina.example.ru/login`
-2. Ввести email → получить ссылку на почту
-3. Перейти по ссылке → попасть в личный кабинет
+2. Ввести email → ссылка на почту
+3. Перейти по ссылке → личный кабинет
 
-### Подписание документа
+### Подписание
 
-1. Загрузить документ (кнопка «Загрузить»)
-2. Нажать кнопку подписи рядом с документом
+1. Загрузить документ
+2. Нажать ✍ рядом с документом
 3. Выбрать сертификат
-4. Ввести PIN-код токена
+4. Ввести PIN токена
 5. Дождаться подтверждения
 
-### Проблема: «Истекло время ожидания загрузки плагина»
+### Проблема: «Истекло время загрузки плагина»
 
-Причины:
-
-- Расширение плагина не установлено или выключено
-- Расширению не дан доступ «на всех сайтах»
-- Корпоративный прокси блокирует `cryptopro.ru`
-
-Решение:
-
-1. Проверить `chrome://extensions` — расширение CryptoPro включено
-2. Попробовать другой браузер (Chrome / Yandex / Chromium-Gost)
-3. Обратиться к администратору
+- Проверить `chrome://extensions` — плагин включён
+- Попробовать другой браузер
+- Проверить, что нет блокировки `cryptopro.ru` (корпоративный прокси)
 
 ### Проблема: «Insert carrier ... to open container»
 
-Причина: sandbox браузера блокирует доступ к токену.
+**Причина:** sandbox браузера блокирует токен.
 
-Решение — запустить браузер с флагом `--no-sandbox`:
+**Решение:** запустить браузер с `--no-sandbox`:
 
 Windows:
 
@@ -524,112 +716,3 @@ macOS:
 
 - Разработка: sigmabigdata
 - Репозиторий: https://github.com/sigmabigdata/Afina_bank
-
----
-
-## Дополнительная документация
-
-- [CRL-SETUP.md](CRL-SETUP.md) — управление CRL (списки отзыва сертификатов)
-- [TECHNICAL.md](TECHNICAL.md) — техническая документация (архитектура, API)
-
----
-
-## Свой SSL-сертификат (TLS_MODE=custom)
-
-По умолчанию Caddy сам выпускает Let's Encrypt. Если у вас уже есть
-свой сертификат (Wildcard от Comodo, корпоративный CA, самоподписанный
-для внутренней сети) — можно переключиться на режим `custom`.
-
-### Как переключиться
-
-1. **Положить сертификаты** в `/opt/afina/caddy-certs/`:
-
-       fullchain.pem   # полная цепочка: сертификат + промежуточные CA
-       privkey.pem     # приватный ключ
-
-   Права:
-
-       chmod 644 caddy-certs/fullchain.pem
-       chmod 600 caddy-certs/privkey.pem
-       chown root:root caddy-certs/*.pem
-
-2. **В `.env.prod`** изменить:
-
-       TLS_MODE=custom
-
-3. **Перезапустить Caddy:**
-
-       cd /opt/afina
-       docker compose -f docker-compose-prod.yml --env-file .env.prod up -d caddy
-
-4. **Проверить:**
-
-       curl -sI https://ваш-домен/actuator/health | head -1
-       # HTTP/2 200
-
-       ./check-ssl.sh
-       # Domain:    ваш-домен
-       # TLS mode:  custom
-       # Expires:   ...
-       # Days left: ...
-       # ✓ ок
-
-### Что важно
-
-- **Caddy не обновляет ваш сертификат.** Когда он истечёт — сайт
-  упадёт. `check-ssl.sh` предупредит за 14 дней.
-- **Let's Encrypt полностью отключается** для этого домена, как только
-  в блоке появилась директива `tls`. Автоматический ACME-челлендж
-  запускаться не будет.
-- **Порт 80 всё ещё нужен** для редиректа HTTP→HTTPS и ACME (если
-  когда-то захотите вернуться к LE).
-- **Приватный ключ** `privkey.pem` — критичный файл. Бэкапьте его
-  отдельно (1Password, сейф). Утечка ключа = компрометация SSL.
-
-### Проверка валидности цепочки
-
-Если браузер жалуется на неполную цепочку:
-
-    openssl s_client -connect ваш-домен:443 -servername ваш-домен
-    # В конце должно быть "Verify return code: 0 (ok)"
-
-Если `unable to get local issuer certificate` — в `fullchain.pem`
-не хватает промежуточных сертификатов. Соберите полную цепочку:
-
-    cat server.crt intermediate.crt > fullchain.pem
-
-### Возврат на Let's Encrypt
-
-1. В `.env.prod`: `TLS_MODE=letsencrypt`
-2. Перезапустить:
-
-       docker compose -f docker-compose-prod.yml --env-file .env.prod up -d caddy
-
-Caddy снова начнёт автоматически выпускать сертификаты.
-
-### Обновление сертификата (для custom)
-
-Когда придёт время обновлять (например, раз в год):
-
-1. Получить новый `fullchain.pem` и `privkey.pem` от CA
-2. Заменить файлы в `caddy-certs/`
-3. Проверить права (`600` на ключ)
-4. Перезагрузить Caddy **без перезапуска контейнера**:
-
-       docker compose -f docker-compose-prod.yml --env-file .env.prod \
-         exec caddy caddy reload --config /etc/caddy/Caddyfile
-
-Или (если reload не сработал):
-
-       docker compose -f docker-compose-prod.yml --env-file .env.prod restart caddy
-
-5. Проверить:
-
-       ./check-ssl.sh
-       curl -sI https://ваш-домен/actuator/health | head -1
-
-### Что НЕ надо менять
-
-- Caddyfile — он шаблонный, ничего править в нём не нужно
-- docker-compose — уже настроен (volume `./caddy-certs:/certs:ro`)
-- Приложение — оно за Caddy и не знает про SSL
