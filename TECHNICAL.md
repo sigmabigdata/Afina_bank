@@ -741,3 +741,286 @@ Request:
 
 
 ---
+
+---
+
+## API
+
+### Аутентификация
+
+| Метод | Путь | Auth | Назначение |
+|---|---|---|---|
+| GET | / | user | redirect /login или /dashboard |
+| GET | /login | – | форма входа |
+| POST | /login | – | запросить magic-link |
+| GET | /login/confirm | – | вход по токену |
+| POST | /logout | user | выход клиента |
+| GET | /admin/login | IP | форма входа админа |
+| GET | /admin/challenge | IP | одноразовый челлендж |
+| POST | /admin/cert-login | IP | вход по УКЭП |
+| POST | /admin/logout | admin | выход админа |
+
+### Документы клиента
+
+| Метод | Путь | Auth | Назначение |
+|---|---|---|---|
+| GET | /dashboard | user | список документов |
+| POST | /documents/upload | user | загрузить (multipart) |
+| GET | /documents/{id}/view | user | просмотр (inline) |
+| GET | /documents/{id}/download | user | скачать оригинал |
+| GET | /documents/{id}/download-signed | user | ZIP: файл + подпись |
+| GET | /documents/{id}/signatures/{sigId}/download | user | скачать .sig |
+| POST | /documents/{id}/signatures/{sigId}/delete | user | запрещено (400) |
+| POST | /documents/{id}/delete | user | удалить (только неподписанный) |
+
+### Подпись
+
+| Метод | Путь | Auth | Назначение |
+|---|---|---|---|
+| POST | /api/sign/accept | user | подписать свой документ |
+| POST | /api/sign/admin/accept | admin | подписать документ клиента |
+
+Request body:
+
+    {
+      "documentId": 42,
+      "signatureBase64": "MIIF..."
+    }
+
+Response (200):
+
+    {
+      "valid": true,
+      "signersCount": 1,
+      "signersInfo": "CN=..., serial=..."
+    }
+
+Response (400): `{"error": "Вы уже подписали этот документ"}`
+
+### Админ
+
+| Метод | Путь | Auth |
+|---|---|---|
+| GET | /admin | admin |
+| GET | /admin/users | admin |
+| POST | /admin/users | admin |
+| GET | /admin/users/{id} | admin |
+| GET | /admin/users/{id}/edit | admin |
+| POST | /admin/users/{id} | admin |
+| POST | /admin/users/{id}/delete | admin |
+| POST | /admin/users/{id}/toggle | admin |
+| POST | /admin/users/{id}/send-login-link | admin |
+| GET | /admin/users/{id}/signatures.zip | admin |
+| POST | /admin/users/{userId}/documents/upload | admin |
+| GET | /admin/documents/{id}/view | admin |
+| GET | /admin/documents/{id}/download | admin |
+| POST | /admin/documents/{id}/delete | admin (разрешено для подписанных, с аудитом) |
+| GET | /admin/documents/{id}/signatures/{sigId}/download | admin |
+| POST | /admin/documents/{id}/signatures/{sigId}/delete | admin → 400 |
+
+### Система
+
+| Метод | Путь | Auth | Назначение |
+|---|---|---|---|
+| GET | /admin/system | admin | страница «Система» |
+| POST | /admin/system/backups/create | admin | создать бэкап |
+| GET | /admin/system/backups/{name}/download | admin | скачать бэкап |
+| POST | /admin/system/backups/{name}/delete | admin | удалить |
+| POST | /admin/system/backups/{name}/restore | admin | восстановить (требует `confirm=RESTORE`) |
+| GET | /admin/system/logs?lines=N | admin | tail лога |
+| POST | /admin/system/restart | admin | перезапуск |
+| GET | /admin/monitor | admin | мониторинг |
+| POST | /admin/monitor/check-now | admin | проверить сейчас |
+| POST | /admin/monitor/reset-counter | admin | сбросить счётчик |
+| GET | /admin/crl | admin | список CRL |
+| POST | /admin/crl/upload | admin | загрузить CRL |
+| POST | /admin/crl/{name}/delete | admin | удалить CRL |
+| GET | /admin/audit | admin | журнал аудита |
+| GET | /admin/audit/export.csv | admin | экспорт CSV |
+| POST | /admin/audit/cleanup | admin | очистить сейчас |
+| POST | /admin/audit/retention | admin | задать retention |
+| GET | /admin/keys | admin | ключи |
+| GET | /admin/keys/download | admin | скачать ZIP с ключами |
+| GET | /admin/settings | admin | настройки |
+| POST | /admin/settings | admin | сохранить |
+| POST | /admin/settings/test-email | admin | тест SMTP |
+| POST | /admin/settings/smtp/reset-to-env | admin | сбросить SMTP к .env |
+| GET | /actuator/health | – | healthcheck |
+
+---
+
+## Эксплуатация
+
+### Управление — CLI afina
+
+Устанавливается в `/usr/local/bin/afina` (symlink на `afina.sh`).
+
+    afina help
+
+См. `README.md` → раздел «CLI afina».
+
+### Обновление
+
+    cd /opt/afina
+    afina deploy
+
+Внутри:
+
+1. `git pull`
+2. `docker compose build --no-cache app`
+3. `docker compose up -d app`
+4. Wait 45s
+5. Показать статус
+
+Flyway применит новые миграции автоматически при старте app.
+
+### Zero-downtime deploy
+
+**Не реализовано.** Простой 30–60 секунд.
+Возможный апгрейд: blue-green через Caddy upstream.
+
+### Бэкап и восстановление
+
+**Автоматически:** cron `/etc/cron.d/afina-backup`, ежедневно 3:00.
+
+**Вручную:**
+
+    afina backup
+    # или
+    ./backup-prod.sh
+
+Создаёт:
+
+- `afina_YYYYMMDD_HHMMSS.sql.gz` — дамп БД
+- `storage_YYYYMMDD_HHMMSS.tar.gz` — архив `storage/documents/`
+
+Ротация 30 дней.
+
+**Восстановление:**
+
+    # через UI
+    /admin/system → «Восстановить»
+
+    # или через CLI
+    ./restore-prod.sh backups/afina_*.sql.gz
+
+Перед восстановлением создаётся safety-бэкап.
+
+**Ключи шифрования НЕ в дампе.** Хранятся отдельно.
+
+### Миграции Flyway
+
+**Добавление новой:**
+
+1. Создать `src/main/resources/db/migration/V{N}__description.sql`
+2. `git push`
+3. На сервере: `afina deploy`
+
+**Нельзя** менять уже применённые миграции — Flyway ругнётся.
+
+### Ротация ключа шифрования
+
+**Не реализована.** Требуется утилита `RotateEncryptionKey`:
+
+1. Читает старый ключ из `OLD_PATH`
+2. Читает новый ключ из `NEW_PATH`
+3. Для каждого `Document`: decrypt(old) → encrypt(new)
+4. Обновляет `encryption_iv`, `key_version`
+5. Перезаписывает файл
+
+Пока ключ один (`v1`). Поле `key_version` в БД подготовлено.
+
+### Диагностика
+
+**CLI:**
+
+    afina doctor
+
+11 проверок: Docker, контейнеры, health, ключи, миграции, данные,
+PII, бэкап, диск, память, перезагрузка.
+
+**UI:**
+
+`/admin/system` → раздел «Диагностика»:
+
+- Доступность БД
+- Роли (3 ожидаются)
+- Документы без владельца
+- Подписи без документа
+- Размер БД
+- Все миграции успешны
+- Активные соединения
+
+### Обновление security-патчей
+
+`unattended-upgrades` установлен, ставит только security-обновления.
+
+Проверка:
+
+    unattended-upgrade --dry-run -d
+
+Перезагрузка после ядерных патчей:
+
+    afina status   # проверить состояние
+    reboot
+
+После ребута контейнеры поднимутся автоматически.
+
+### Просмотр логов
+
+    afina logs app -f
+    afina logs app
+    afina logs caddy
+    afina logs pg
+
+Ошибки в БД:
+
+    afina db "SELECT event_time, event_type, details FROM audit_events WHERE result='FAIL' ORDER BY id DESC LIMIT 20;"
+
+---
+
+## Известные ограничения
+
+- **Нет zero-downtime deploy** (простой 30–60 сек)
+- **Нет ротации ключа шифрования** (утилита RotateKey не написана)
+- **Нет репликации БД** (единственный инстанс)
+- **Нет Prometheus/Grafana** (только healthcheck + email)
+- **Ключ шифрования на сервере** — root-компрометация опасна
+- **Резервное копирование без шифрования** — дамп БД и storage открыто
+- **Бэкапы на том же сервере** — не выгружаются в S3/rclone
+- **Нет WAF** перед Caddy
+- **Rate-limit in-memory** — не масштабируется на несколько инстансов
+- **Fuzzy-поиск по email/phone** не работает (шифрование)
+- **DKIM не настроен** — у хостера почты (spam-риск)
+- **Нет аудита просмотра** (кто смотрел какие документы)
+- **Нет self-service клиента** (смена email, экспорт данных)
+
+### Дальнейшие итерации
+
+Приоритеты для следующих версий:
+
+1. **Пароль на ZIP с ключами** + шифрование бэкапов БД
+2. **Выгрузка бэкапов в S3/rclone** (внешнее хранилище)
+3. **Массовые операции в админке** (выделить N клиентов → действия)
+4. **Отчёты** (`/admin/reports`): подписано за период, топ клиентов
+5. **Профиль админа** (`/admin/profile`)
+6. **Утилита RotateKey**
+7. **Zero-downtime deploy** (blue-green)
+8. **Prometheus + Grafana**
+9. **KMS (HashiCorp Vault)** для ключей
+10. **WAF** (Cloudflare или ModSecurity)
+11. **DKIM** у хостера почты
+12. **Импорт клиентов из CSV**
+
+---
+
+## Ссылки
+
+- Spring Boot: https://docs.spring.io/spring-boot/docs/3.2.5/reference/html/
+- PostgreSQL 16: https://www.postgresql.org/docs/16/
+- Flyway: https://documentation.red-gate.com/flyway
+- pgAudit: https://github.com/pgaudit/pgaudit
+- Caddy 2: https://caddyserver.com/docs/
+- BouncyCastle: https://www.bouncycastle.org/documentation.html
+- КриптоПро CSP: https://www.cryptopro.ru/products/csp
+- КриптоПро CAdES: https://www.cryptopro.ru/products/cades
