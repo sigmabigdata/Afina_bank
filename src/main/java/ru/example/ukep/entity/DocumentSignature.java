@@ -22,6 +22,7 @@ public class DocumentSignature {
     private Instant signedAt = Instant.now();
 
     @Column(name = "signer_subject_enc", length = 1000)
+    @Convert(converter = ru.example.ukep.security.PiiStringConverter.class)
     private String signerSubject;
 
     @Column(length = 100)
