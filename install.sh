@@ -38,7 +38,85 @@ ok "Интернет доступен"
 [ -d certs ] || err "certs/ не найден"
 [ -d cryptopro-dist ] || err "cryptopro-dist/ не найден"
 [ -f cryptopro-dist/linux-amd64_deb.tgz ] || err "cryptopro-dist/linux-amd64_deb.tgz не найден"
+
+# admins.env не пустой (есть хотя бы одна строка CN|SNILS)
+admin_lines=$(grep -v '^#' admins.env | grep -v '^$' | wc -l)
+[ "$admin_lines" -gt 0 ] || err "admins.env содержит только комментарии — добавь хотя бы одного админа (CN|SNILS)"
+ok "admins.env: $admin_lines администратор(ов)"
+
+# certs содержит хотя бы один PEM/CRT/CER
+cert_files=$(find certs -maxdepth 1 -type f \( -name '*.cer' -o -name '*.crt' -o -name '*.pem' \) 2>/dev/null | wc -l)
+[ "$cert_files" -gt 0 ] || err "certs/ не содержит .cer/.crt/.pem файлов"
+ok "certs/: $cert_files сертификат(ов)"
+
+# Проверим, что хотя бы один .cer/.crt парсится как X.509
+valid_certs=0
+for f in certs/*.cer certs/*.crt; do
+    [ -f "$f" ] || continue
+    if openssl x509 -in "$f" -noout 2>/dev/null; then
+        valid_certs=$((valid_certs + 1))
+    else
+        warn "Не удалось прочитать $f как X.509"
+    fi
+done
+[ "$valid_certs" -gt 0 ] || err "Ни один сертификат в certs/ не является валидным X.509"
+ok "Валидных сертификатов: $valid_certs"
+
+# Авто-загрузка корневых сертификатов УЦ (где есть стабильные URL)
+log "Попытка скачать корневые сертификаты известных УЦ"
+mkdir -p certs
+
+download_ca() {
+    local name="$1" url="$2"
+    local target="certs/$name"
+    [ -f "$target" ] && { echo "  • $name уже есть"; return; }
+    if curl -fsS --max-time 15 -o /tmp/ca-dl.cer "$url" 2>/dev/null; then
+        if openssl x509 -in /tmp/ca-dl.cer -noout 2>/dev/null; then
+            mv /tmp/ca-dl.cer "$target"
+            echo "  ✓ $name"
+        else
+            rm -f /tmp/ca-dl.cer
+            echo "  ✗ $name — не X.509"
+        fi
+    else
+        echo "  ✗ $name — недоступен"
+    fi
+}
+
+# НУЦ Минцифры
+download_ca "russian_trusted_root_ca.pem"  "https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt"
+download_ca "russian_trusted_sub_ca.pem"   "https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt"
+
+# Тензор
+download_ca "tensor_ca_2021.cer"           "https://update.sbis.ru/report/cert/basic/tensorca-2021_gost2012.cer"
+
+# Ростелеком
+download_ca "rt_ca_root.crt"               "https://espd.wifi.rt.ru/docs/ca-root.crt"
+
+# ФНС (корень ГУЦ)
+download_ca "guc_root_2022.cer"            "http://root-cert.ru/docs/cer/mincifri.cer"
+
+echo ""
+echo "ℹ️  Если твой УЦ не в списке (Контур, Такском, СберКорус и т.п.):"
+echo "   положи корневой сертификат руками в certs/ и перезапусти: afina restart"
+echo ""
+
 ok "admins.env, certs/, cryptopro-dist/ на месте"
+
+# Свободное место (минимум 10 GB)
+free_kb=$(df --output=avail / | tail -1 | tr -d ' ')
+free_gb=$((free_kb / 1024 / 1024))
+if [ "$free_gb" -lt 10 ]; then
+    err "Свободно только ${free_gb} GB. Требуется минимум 10 GB"
+fi
+ok "Свободное место: ${free_gb} GB"
+
+# Свободная память (минимум 2 GB)
+mem_mb=$(free -m | awk '/Mem:/ {print $7}')
+if [ "$mem_mb" -lt 1500 ]; then
+    warn "Свободной памяти мало: ${mem_mb} MB (рекомендуется > 1.5 GB)"
+fi
+ok "Свободная память: ${mem_mb} MB"
 
 [ "$UNATTENDED" = "1" ] && [ ! -f .env.install ] && err "Нужен .env.install"
 
@@ -93,6 +171,7 @@ if [ "$UNATTENDED" != "1" ]; then
 
     if [ "$ssl_choice" = "2" ]; then
         TLS_MODE="custom"
+        LE_EMAIL=""
         echo -n "Путь к fullchain.pem: "
         read -r SSL_FULLCHAIN
         echo -n "Путь к privkey.pem:   "
@@ -101,16 +180,42 @@ if [ "$UNATTENDED" != "1" ]; then
         [ -f "$SSL_FULLCHAIN" ] || err "Файл не найден: $SSL_FULLCHAIN"
         [ -f "$SSL_PRIVKEY" ]   || err "Файл не найден: $SSL_PRIVKEY"
 
+        # Проверим, что ключ соответствует сертификату
+        cert_mod=$(openssl x509 -noout -modulus -in "$SSL_FULLCHAIN" 2>/dev/null | md5sum | cut -d' ' -f1)
+        key_mod=$(openssl rsa  -noout -modulus -in "$SSL_PRIVKEY"   2>/dev/null | md5sum | cut -d' ' -f1)
+        if [ "$cert_mod" != "$key_mod" ]; then
+            # Попробуем как EC-ключ
+            key_mod=$(openssl ec -noout -modulus -in "$SSL_PRIVKEY" 2>/dev/null | md5sum | cut -d' ' -f1)
+            if [ "$cert_mod" != "$key_mod" ]; then
+                err "privkey.pem не соответствует fullchain.pem"
+            fi
+        fi
+        ok "SSL: ключ и сертификат соответствуют друг другу"
+
         mkdir -p caddy-certs
         cp "$SSL_FULLCHAIN" caddy-certs/fullchain.pem
         cp "$SSL_PRIVKEY"   caddy-certs/privkey.pem
         chmod 644 caddy-certs/fullchain.pem
         chmod 600 caddy-certs/privkey.pem
+
+        # Проверим срок действия
+        ssl_end=$(openssl x509 -in "$SSL_FULLCHAIN" -noout -enddate | cut -d= -f2)
+        ssl_end_epoch=$(date -d "$ssl_end" +%s 2>/dev/null || echo 0)
+        ssl_days=$(( (ssl_end_epoch - $(date +%s)) / 86400 ))
+        if [ "$ssl_days" -lt 0 ]; then
+            err "Сертификат уже истёк: $ssl_end"
+        elif [ "$ssl_days" -lt 30 ]; then
+            warn "Сертификат истекает через $ssl_days дней ($ssl_end)"
+        else
+            ok "Срок действия: $ssl_days дней"
+        fi
+
         ok "SSL: свой сертификат скопирован в caddy-certs/"
     else
         TLS_MODE="letsencrypt"
         echo -n "Email для Let's Encrypt (для уведомлений об истечении): "
         read -r LE_EMAIL
+        [ -z "$LE_EMAIL" ] && err "Email обязателен для Let's Encrypt"
         ok "SSL: Let's Encrypt (автоматически)"
     fi
 else
