@@ -39,37 +39,37 @@ hdr()  { echo -e "\n${C}${BOLD}▶ $*${N}"; }
 
 # ============================================================
 cmd_help() {
-    cat <<EOF
-${BOLD}Афина · CLI${N}
-
-${BOLD}Основное:${N}
-  status              Сводка: контейнеры, health, ключи, SSL
-  up                  Поднять стек
-  down                Остановить стек
-  restart             Перезапустить app
-  deploy              git pull + rebuild + restart
-
-${BOLD}Логи и отладка:${N}
-  logs [app|caddy|pg] [-f]     Логи (по умолчанию app, без -f)
-  shell [app|pg]               Открыть sh/bash в контейнере
-  db "SQL"                     SQL-запрос на проде
-  doctor                       Полная диагностика
-  health                       Health один раз
-
-${BOLD}Данные:${N}
-  backup                       Ручной бэкап
-  key                          Информация о ключах шифрования
-  audit [N]                    Последние N событий аудита (по умолч. 20)
-  users [search]               Список клиентов
-
-${BOLD}Инфраструктура:${N}
-  ssl                          Проверка SSL-сертификата
-  crl                          Список CRL
-  cron                         Показать cron-задачи
-
-${BOLD}Прочее:${N}
-  help                         Эта справка
-  version                      Версия app
+    echo -e "${BOLD}Афина · CLI${N}"
+    echo ""
+    echo -e "${BOLD}Основное:${N}"
+    echo -e "  status              Сводка: контейнеры, health, ключи, SSL"
+    echo -e "  up                  Поднять стек"
+    echo -e "  down                Остановить стек"
+    echo -e "  restart             Перезапустить app"
+    echo -e "  deploy              git pull + rebuild + restart"
+    echo ""
+    echo -e "${BOLD}Логи и отладка:${N}"
+    echo -e "  logs [app|caddy|pg] [-f]     Логи (по умолчанию app, без -f)"
+    echo -e "  shell [app|pg]               Открыть sh/bash в контейнере"
+    echo -e "  db \"SQL\"                     SQL-запрос на проде"
+    echo -e "  doctor                       Полная диагностика"
+    echo -e "  health                       Health один раз"
+    echo ""
+    echo -e "${BOLD}Данные:${N}"
+    echo -e "  backup                       Ручной бэкап"
+    echo -e "  key                          Информация о ключах шифрования"
+    echo -e "  audit [N]                    Последние N событий аудита (по умолч. 20)"
+    echo -e "  users [search]               Список клиентов"
+    echo ""
+    echo -e "${BOLD}Инфраструктура:${N}"
+    echo -e "  ssl                          Проверка SSL-сертификата"
+    echo -e "  crl                          Список CRL"
+    echo -e "  cron                         Показать cron-задачи"
+    echo ""
+    echo -e "${BOLD}Прочее:${N}"
+    echo -e "  help                         Эта справка"
+    echo -e "  version                      Версия app"
+    echo ""
 EOF
 }
 
