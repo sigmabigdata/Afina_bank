@@ -62,30 +62,40 @@ public class SignApiController {
         if (admin.getRole() != ru.example.ukep.entity.Role.ROLE_ADMIN) {
             return ResponseEntity.status(403).body(Map.of("error", "Только для администратора"));
         }
-        Document doc = documentRepository.findById(req.getDocumentId())
+        Document doc = documentRepository.findByIdWithOwner(req.getDocumentId())
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
         return doAccept(doc, doc.getOwner(), req.getSignatureBase64());
     }
 
     private ResponseEntity<?> doAccept(Document doc, User owner, String sig) {
+        String ownerEmail = safeOwnerEmail(owner);
         try {
             Map<String, Object> result = signatureVerifier.verifyDetached(
                     documentService.getBytes(doc), sig);
             String subject = String.valueOf(result.getOrDefault("signerSubject", ""));
             String serial = String.valueOf(result.getOrDefault("signerSerial", ""));
             documentService.addSignature(doc.getId(), owner, sig, subject, serial);
-            audit.signSuccess(owner.getEmail(), doc.getId(), subject);
+            audit.signSuccess(ownerEmail, doc.getId(), subject);
             return ResponseEntity.ok(Map.of(
                     "valid", true,
                     "signersCount", result.get("signersCount"),
                     "signersInfo", result.get("signersInfo")));
         } catch (IllegalArgumentException e) {
-            audit.signFail(owner.getEmail(), doc.getId(), e.getMessage());
+            audit.signFail(ownerEmail, doc.getId(), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            audit.signFail(owner.getEmail(), doc.getId(), e.getMessage());
+            audit.signFail(ownerEmail, doc.getId(), e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Ошибка проверки подписи: " + e.getMessage()));
+        }
+    }
+
+    /** Безопасно получить email владельца (не падать при LazyInit). */
+    private String safeOwnerEmail(User owner) {
+        try {
+            return owner.getEmail();
+        } catch (Exception e) {
+            return "user#" + (owner != null ? owner.getId() : "?");
         }
     }
 }

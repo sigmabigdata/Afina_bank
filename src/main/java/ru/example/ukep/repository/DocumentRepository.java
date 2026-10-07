@@ -17,6 +17,11 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     Optional<Document> findByIdAndOwner(Long id, User owner);
 
+    /** Для админских операций: загрузить документ с уже инициализированным owner. */
+    @EntityGraph(attributePaths = "owner")
+    @Query("select d from Document d where d.id = :id")
+    Optional<Document> findByIdWithOwner(@Param("id") Long id);
+
     @Query("select d from Document d join fetch d.owner order by d.uploadedAt desc")
     @EntityGraph(attributePaths = {"signatures", "signatures.signerUser"})
     List<Document> findAllWithOwner();
