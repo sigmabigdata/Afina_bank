@@ -1,6 +1,0 @@
-# Профиль для одноразовой миграции шифрования.
-# Активируется вместе с prod: SPRING_PROFILES_ACTIVE=prod,migrate
-logging:
-  level:
-    root: WARN
-    ru.example.ukep: INFO
