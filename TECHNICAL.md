@@ -10,14 +10,18 @@
 1. [Обзор архитектуры](#обзор-архитектуры)
 2. [Компоненты](#компоненты)
 3. [Потоки данных](#потоки-данных)
-4. [Модель аутентификации](#модель-аутентификации)
-5. [Шифрование файлов](#шифрование-файлов)
+4. [Аутентификация](#аутентификация)
+5. [Шифрование данных](#шифрование-данных)
 6. [Модель ролей БД](#модель-ролей-бд)
 7. [Схема БД](#схема-бд)
 8. [Криптография УКЭП](#криптография-укэп)
 9. [Управление CRL](#управление-crl)
-10. [API](#api)
-11. [Эксплуатация](#эксплуатация)
+10. [Rate limiting](#rate-limiting)
+11. [Аудит](#аудит)
+12. [Мониторинг](#мониторинг)
+13. [API](#api)
+14. [Эксплуатация](#эксплуатация)
+15. [Известные ограничения](#известные-ограничения)
 
 ---
 
@@ -44,12 +48,14 @@
                                               │ AES-256-GCM (.enc)       │
                                               └──────────────────────────┘
 
-**Ключевое:**
+**Ключевые принципы:**
 
 - Приватный ключ УКЭП **никогда не покидает токен** клиента
 - Сервер видит только публичный сертификат и подпись
 - Файлы на диске зашифрованы AES-256-GCM
-- Caddy сам получает и обновляет сертификаты Let's Encrypt
+- PII в БД (email, телефон, ФИО-в-документах) зашифрованы отдельным ключом
+- Caddy сам получает и обновляет сертификаты Let's Encrypt (или клиентские)
+- Всё в Docker Compose: app + postgres + caddy
 
 ---
 
@@ -57,28 +63,35 @@
 
 ### 1. Приложение (Spring Boot)
 
-Контейнер `afina-app`, порт 8080 (не публикуется наружу).
-Читает `.env.prod`, монтирует `storage/`, `logs/`, `backups/`, `secrets/`.
+Контейнер `afina-app`, порт 8080 (наружу не публикуется).
+Читает `.env.prod`, монтирует `storage/`, `logs/`, `backups/`, `certs/`, `crls/`, `secrets/`.
 
 Ключевые модули:
 
 | Модуль | Назначение |
 |---|---|
-| `SecurityConfig` | Две независимые цепочки: admin (IP whitelist) и user |
-| `AdminCertAuthController` | Вход админов по УКЭП (challenge + подпись) |
-| `AuthController` | Вход клиентов по magic-link |
-| `SignatureVerifier` | Проверка CAdES-BES через JCSP + BouncyCastle |
+| `SecurityConfig` | Две цепочки фильтров: admin (IP whitelist) и user |
+| `RateLimitFilter` | Rate-limit до Spring Security |
+| `AdminCertAuthController` | Вход админов через УКЭП (challenge + подпись) |
+| `AuthController` | Вход клиентов через magic-link |
+| `SignatureVerifier` | Полная проверка CAdES-BES (BouncyCastle + chain + CRL) |
+| `CrlDownloader` | Автозагрузка CRL по CDP из сертификатов |
 | `DocumentService` | Загрузка/скачивание/шифрование файлов |
-| `FileEncryptor` | AES-256-GCM шифрование |
+| `FileEncryptor` | AES-256-GCM для файлов |
+| `PiiEncryptor` | AES-256-GCM для PII (email, phone, ФИО) |
+| `PiiStringConverter` | JPA `@Convert` для прозрачного шифрования |
+| `AuditService` | Запись событий в `audit_events` |
+| `MonitoringService` | Scheduled health-check + алерты |
 | `BackupService` | pg_dump + psql restore |
+| `SettingsService` | Key-value настройки (`app_settings`) |
+| `KeysService` | Информация о ключах шифрования |
 
 ### 2. PostgreSQL 16
 
-Контейнер `afina-postgres`, порт 5432 (не публикуется).
+Контейнер `afina-postgres`, порт 5432 (наружу не публикуется).
 Образ `afina-postgres:16-pgaudit` — PostgreSQL + pgAudit.
 
 Расширения:
-
 - `pg_stat_statements` — мониторинг запросов
 - `pgaudit` — аудит DDL/DML
 - `pgcrypto` — криптография
@@ -86,25 +99,36 @@
 
 ### 3. Caddy 2
 
-Контейнер `afina-caddy`, порты 80/443.
-Reverse-proxy с автоматическим TLS от Let's Encrypt.
+Контейнер `afina-caddy`. Порты настраиваются через `HTTP_PORT`/`HTTPS_PORT` (по умолчанию 80/443).
+Reverse-proxy с автоматическим TLS.
 
-`Caddyfile`:
+`Caddyfile` (шаблонный):
 
-    afina.example.ru {
+    {$APP_DOMAIN} {
+        encode gzip
+        {$TLS_DIRECTIVE}
         reverse_proxy app:8080
     }
 
+    www.{$APP_DOMAIN} {
+        redir https://{$APP_DOMAIN}{uri} permanent
+    }
+
+`TLS_DIRECTIVE`:
+- Пусто → Let's Encrypt (ACME автоматически)
+- `tls /certs/fullchain.pem /certs/privkey.pem` → свой сертификат
+
 ### 4. Хранилище
 
-`/opt/afina/storage/documents/` — файлы зашифрованы, имя `<uuid>_<orig>.enc`.
-
-`/opt/afina/secrets/file.key` — ключ AES-256, права 600 uid=999.
-
-`/opt/afina/backups/` — дампы БД (`afina_*.sql.gz`) + архивы файлов
-(`storage_*.tar.gz`).
-
-`/opt/afina/logs/` — логи приложения.
+| Путь | Содержимое | Формат |
+|---|---|---|
+| `/opt/afina/storage/documents/` | Файлы документов | `<uuid>_<orig>.enc`, AES-256-GCM |
+| `/opt/afina/secrets/file.key` | Ключ для файлов | base64, 32 байта |
+| `/opt/afina/secrets/pii.key` | Ключ для PII | base64, 32 байта |
+| `/opt/afina/certs/` | Truststore | X.509 .cer/.crt/.pem |
+| `/opt/afina/crls/` | CRL | `auto-*.crl` + вручную |
+| `/opt/afina/backups/` | Бэкапы | `.sql.gz` + `storage_*.tar.gz` |
+| `/opt/afina/logs/` | Логи приложения | `app.log` |
 
 ---
 
@@ -119,95 +143,92 @@ Reverse-proxy с автоматическим TLS от Let's Encrypt.
          b. FileEncryptor.encrypt(plaintext):
               - IV = secureRandom(12 байт)
               - AES-256-GCM(key, IV, plaintext) → ciphertext + tag
-              - return (IV || ciphertext) + IV_base64
+              - return (IV || ciphertext)
          c. Files.write(storage/<uuid>_<orig>.enc, IV||ct)
          d. sha256 = SHA-256(plaintext)
-         e. INSERT INTO documents (original_name, stored_name, size,
-                                   file_sha256, encryption_iv, key_version,
-                                   encrypted=true, ...)
-    4. Redirect /dashboard
+         e. originalName → PiiStringConverter → encrypted
+         f. INSERT INTO documents
+    4. audit.documentUpload()
+    5. Redirect /dashboard
 
 ### Скачивание документа
 
     1. Клиент → GET /documents/{id}/download
-    2. DocumentController.download()
-    3. DocumentService.getOwned(id, user) — проверка владельца
-    4. DocumentService.getBytes(doc):
+    2. DocumentService.getOwned(id, user) — проверка владельца
+    3. DocumentService.getBytes(doc):
          a. Files.readAllBytes(storage/<stored_name>)
-         b. FileEncryptor.decrypt(raw):
-              - IV = raw[0..11]
-              - AES-256-GCM.decrypt(key, IV, raw[12..])
-              - return plaintext
-    5. ResponseEntity<Resource> с plaintext
+         b. FileEncryptor.decrypt(raw): IV = raw[0..11], AES-GCM
+    4. ResponseEntity<Resource> с plaintext
 
 ### Подписание документа (клиент)
 
-    1. Клиент нажимает «Подписать»
-    2. JS: fetch /documents/{id}/view → arrayBuffer → base64
-    3. JS: cadesplugin.signBase64(thumbprint, contentBase64)
-         — плагин подписывает ЛОКАЛЬНО, ключ не уходит с токена
-    4. JS: POST /api/sign/accept {documentId, signatureBase64}
-    5. SignApiController:
+    1. JS: fetch /documents/{id}/view → arrayBuffer → base64
+    2. JS: cadesplugin.signBase64(thumbprint, contentBase64)
+         — плагин подписывает ЛОКАЛЬНО на токене
+    3. JS: POST /api/sign/accept {documentId, signatureBase64}
+    4. SignApiController:
          - getOwned(id, user)
          - documentService.getBytes(doc) → plaintext
-         - signatureVerifier.verifyDetached(plaintext, signatureB64)
-             • JCSP/RevCheck: проверка цепочки, CRL/OCSP
-             • возвращает {signerSubject, signerSerial, signersCount}
-         - documentService.addSignature(): INSERT в document_signatures
-    6. 200 OK с информацией о подписантах
+         - signatureVerifier.verifyDetached(plaintext, sig):
+             • BouncyCastle: парсинг CAdES, проверка подписи
+             • Chain building: leaf → intermediate → root
+             • Проверка корня в truststore (/app/certs)
+             • Проверка отзыва по CRL (/app/crls)
+         - documentService.addSignature() → INSERT document_signatures
+         - audit.signSuccess()
+    5. 200 OK
 
 ### Вход администратора (УКЭП)
 
-    1. GET /admin/login → HTML-страница
-    2. JS: GET /admin/challenge → {challenge: "<uuid>-<timestamp>"}
-       (сервер сохраняет в in-memory map, TTL 5 минут)
+    1. GET /admin/login → HTML
+    2. JS: GET /admin/challenge → {challenge: "<uuid>-<ts>"}
+       (в памяти, TTL 5 мин, одноразовый)
     3. JS: signBase64(thumbprint, btoa(challenge))
     4. JS: POST /admin/cert-login {cn, snils, challenge, signatureBase64}
     5. AdminCertAuthController:
-         - challenges.remove(challenge) → одноразовость
+         - challenges.remove(challenge)
          - adminsFile.find(cn, snils) → 403 если нет
          - signatureVerifier.verifyDetached(challenge, signature)
-         - extractCnFromLastSignature() == admins.env CN → 403 если нет
-         - userService.upsertAdminByCert(cn, snils)
+         - extractCnFromLastSignature() == CN из admins.env
+         - userService.upsertAdminByCert()
          - SecurityContextHolder → ADMIN_SECURITY_CONTEXT
-         - adminContextRepository.saveContext(ctx, req, resp)
-    6. 200 OK {success: true, redirect: "/admin"}
+         - audit.adminLoginSuccess()
+    6. 200 OK
 
 ### Вход клиента (magic-link)
 
     1. POST /login {email}
     2. UserService.generateLoginLink(email, baseUrl):
-         - если юзер не найден или !enabled → return null (не палим)
-         - token = UUID.randomUUID().replace("-", "")
-         - UPDATE users SET login_token=?, login_token_expires=now+10h
-         - return baseUrl + "/login/confirm?token=" + token
-    3. EmailService.sendLoginLink() — SMTP или лог
+         - findByEmailHash(pii.hash(email))
+         - если нет или !enabled → return null (не палим)
+         - token = UUID.randomUUID()
+         - UPDATE login_token, login_token_expires = now+10h
+    3. EmailService.sendLoginLink() → SMTP (или лог в dev)
     4. Клиент переходит → GET /login/confirm?token=...
-    5. UserService.consumeLoginToken(token):
+    5. UserService.consumeLoginToken():
          - findByLoginToken
          - проверка expires
-         - токен многоразовый до истечения TTL (10 часов), защита от
-           Gmail-prefetch, который «съедает» первый клик
-         - UPDATE users SET last_login_at=now, login_token_used_at
-         - return User
+         - токен многоразовый до TTL (анти-prefetch Gmail)
+         - UPDATE last_login_at, login_token_used_at
+         - audit.loginSuccess()
     6. SecurityContextHolder → USER_SECURITY_CONTEXT
     7. Redirect /dashboard
 
 ---
 
-## Модель аутентификации
+## Аутентификация
 
 ### Два независимых контекста
 
-В одном HTTP-сеансе могут одновременно жить две разные аутентификации:
+В одном HTTP-сеансе могут одновременно жить две аутентификации:
 
 | Контекст | Ключ в HttpSession | Кто |
 |---|---|---|
 | `USER_SECURITY_CONTEXT` | `USER_SECURITY_CONTEXT` | Клиент (magic-link) |
 | `ADMIN_SECURITY_CONTEXT` | `ADMIN_SECURITY_CONTEXT` | Админ (УКЭП) |
 
-Реализуется через два `HttpSessionSecurityContextRepository` с разными
-`springSecurityContextKey`. Логаут одного не затрагивает другого.
+Два `HttpSessionSecurityContextRepository` с разными `springSecurityContextKey`.
+Логаут одного не затрагивает другого.
 
 ### Цепочки фильтров Spring Security
 
@@ -222,105 +243,113 @@ Reverse-proxy с автоматическим TLS от Let's Encrypt.
 **`@Order(2)` — userChain:**
 
 - Всё остальное
-- Открытые пути: `/`, `/login`, `/login/confirm`, `/error`,
-  `/actuator/health`, `/actuator/info`, `/ping`, `/css/**`, `/js/**`,
-  `/favicon.ico`, `/h2-console/**`
+- Открытые пути: `/`, `/login`, `/login/confirm`, `/error`, `/actuator/health`, `/actuator/info`, `/ping`, `/css/**`, `/js/**`, `/img/**`, `/favicon.ico`
 - `.anyRequest().authenticated()`
 
+**Rate limit — до обеих цепочек:** `RateLimitFilter` с `@Order(HIGHEST_PRECEDENCE)`.
+
 CSRF отключён для обеих цепочек (cert-auth + IP whitelist для админов,
-stateless-токен в magic-link для клиентов).
+stateless magic-link для клиентов).
 
 ### Логин админа по УКЭП
 
 Реализация — `AdminCertAuthController`.
 
 **Защита от replay:**
+- Одноразовый challenge в `ConcurrentHashMap` с TTL 5 минут
+- `challenges.remove()` при первом использовании
+- TTL-очистка при каждом новом запросе
+- Challenge содержит timestamp: `<uuid>-<millis>`
 
-- Одноразовый challenge хранится в `ConcurrentHashMap` с TTL 5 минут
-- `challenges.remove()` при первом использовании — второй раз не пройдёт
-- TTL-очистка при каждом новом запросе (`cleanOldChallenges`)
-- Challenge включает timestamp: `<uuid>-<millis>`
-
-**Проверка подписи:**
-
-1. Base64-декодирование → `CAdESSignature`
-2. `cades.verify(trustedCerts, crls)` — JCSP проверяет цепочку до
-   корневого УЦ и отзыв по CRL
-3. Дополнительно BouncyCastle `CMSSignedData` — fallback-проверка
+**Проверка:**
+1. Base64 → CMS/CAdES через BouncyCastle
+2. Проверка подписи через JCSP (для ГОСТ) с fallback
+3. Сверка CN из подписи с `admins.env`
+4. `userService.upsertAdminByCert()` — синтетический email
+   `<cn-translit>+<snils>@ukep.local`
 
 **Что защищено:**
-
 - Подделка CN/СНИЛС в POST — отсекается сравнением с `admins.env`
 - Подмена IP — фильтр на уровне сервлета
 - MITM при HTTPS — TLS 1.2/1.3 + HSTS от Caddy
 - Replay challenge — одноразовый + TTL
 
-**Что НЕ защищено (осознанные компромиссы):**
-
-- Rate limiting на `/admin/challenge` — нет (можно добавить)
-- Брутфорс `admins.env` — нет ограничения попыток
+**Что НЕ защищено:**
+- Rate limiting на `/admin/challenge` — только общий (10/15мин)
 
 ### Логин клиента по magic-link
 
 Реализация — `AuthController`, `UserService`.
 
 **Токен:**
-
-- Генерация: `UUID.randomUUID().replace("-","")` — 32 hex-символа
-- TTL: 10 часов (`LOGIN_TOKEN_TTL`)
-- Хранение: `users.login_token`, `users.login_token_expires`
-- Многоразовость в пределах TTL (антипаттерн для безопасности, но
-  необходимо для обхода Gmail-prefetch и корпоративных почтовых
-  сканеров, которые «кликают» все ссылки в письмах)
+- `UUID.randomUUID().replace("-","")` — 32 hex
+- TTL 10 часов
+- Хранение в `users.login_token`
+- **Многоразовый** в пределах TTL (компромисс против Gmail-prefetch)
 
 **Что защищено:**
-
 - Энумерация email — не палим существование (всегда 200 OK)
-- Юзер отключён (`enabled=false`) — токен не выпускается
-- TTL 10 часов ограничивает окно злоупотребления
-- `last_login_at` фиксируется для аудита
+- `enabled=false` → токен не выпускается
+- TTL 10 часов
+- `last_login_at` фиксируется
 
 **Что НЕ защищено:**
-
-- Rate limiting на `/login` — нет (можно отправить 1000 писем/час на
-  один email)
 - Повторное использование токена до истечения TTL (компромисс)
+- Rate limiting есть: 5/15мин на IP+email (см. раздел Rate limiting)
 
 ---
 
-## Шифрование файлов
+## Шифрование данных
 
-### Алгоритм
+### Файлы документов
 
-- **Шифр:** AES-256-GCM (`AES/GCM/NoPadding`, JCE SunJCE)
-- **Ключ:** 32 байта (256 бит), base64 в `/opt/afina/secrets/file.key`
-- **IV:** 12 байт, случайные для каждого файла (`SecureRandom`)
-- **AuthTag:** 16 байт (128 бит), автоматически добавляется GCM
+- **Шифр:** AES-256-GCM (`AES/GCM/NoPadding`, SunJCE)
+- **Ключ:** 32 байта, base64 в `/opt/afina/secrets/file.key`
+- **IV:** 12 байт, случайные для каждого файла
+- **AuthTag:** 16 байт (128 бит), автоматически от GCM
+- **Формат на диске:** `[IV 12 байт][ciphertext][authTag 16 байт]`
+- IV дублируется в БД (`documents.encryption_iv`, base64)
 
-### Формат файла на диске
+### PII в БД
 
-    [IV 12 байт][ciphertext][authTag 16 байт]
+| Поле | Колонка | Тип |
+|---|---|---|
+| `users.email` | `email_enc` | AES-256-GCM через `@Convert` |
+| `users.email` | `email_hash` | SHA-256(lower(email)), unique |
+| `users.phone` | `phone_enc` | AES-256-GCM |
+| `users.phone` | `phone_hash` | SHA-256(digits), nullable |
+| `users.full_name` | `full_name` | **plaintext** (для fuzzy-поиска) |
+| `documents.original_name` | `original_name_enc` | AES-256-GCM |
+| `documents.signer_subject` | `signer_subject_enc` | AES-256-GCM |
+| `document_signatures.signer_subject` | `signer_subject_enc` | AES-256-GCM |
 
-IV дублируется в БД (`documents.encryption_iv`, base64) для
-идентификации параметров шифрования при будущей ротации.
+Реализация — `PiiStringConverter` (JPA `AttributeConverter<String, String>`).
+`PiiEncryptor` — AES-256-GCM, ключ `/opt/afina/secrets/pii.key`.
 
-### Что шифруется
+**Особенность `decrypt()`:** если строка не похожа на base64 от нашего
+формата (короткая или не парсится) — возвращается как есть. Это
+legacy-fallback для строк, оставшихся в plaintext до миграции.
 
-- **Только контент файлов** в `storage/documents/*.enc`
-- **НЕ шифруются:**
-  - Метаданные в БД (`original_name`, `size`, `file_sha256`) —
-    необходимы для поиска и отображения
-  - Подписи (в `documents.signature_base64`, `document_signatures`)
-  - Логи, конфиги, сертификаты
+### Что защищает
+
+| Угроза | Защита |
+|---|---|
+| Кража HDD / snapshot диска | ✅ Криптомусор без ключа |
+| Утечка через хостинг | ✅ Только шифротекст |
+| Утечка бэкапа БД | ✅ PII в бэкапе зашифрован |
+| Root-компрометация на работающем сервере | ⚠️ Ключ доступен из `secrets/` |
+| Fuzzy-поиск по email в админке | ❌ Только exact по hash |
+
+Для защиты от root-компрометации нужен KMS (Vault, AWS KMS) — отдельная итерация.
 
 ### Жизненный цикл ключа
 
-- **Создание:** один раз на сервере `openssl rand -base64 32`
-- **Ротация:** требует утилиты `RotateEncryptionKey` (не реализовано).
-  Поле `documents.key_version` зарезервировано для будущих ключей.
-- **Резервная копия:** обязательно вне сервера (1Password, сейф)
-- **Компромисс:** при потере ключа — **все зашифрованные файлы
-  безвозвратно утеряны**
+- **Создание:** `install.sh` или `openssl rand -base64 32`
+- **Ротация:** не реализована (нет утилиты `RotateKey`)
+- **Резервная копия:** `/admin/keys` → скачать ZIP
+- **Компромисс:** потеря ключа = потеря данных
+
+---
 
 ## Модель ролей БД
 
@@ -332,13 +361,7 @@ IV дублируется в БД (`documents.encryption_iv`, base64) для
 | `afina_app` | Приложение | SELECT, INSERT, UPDATE, DELETE |
 | `afina_auditor` | Аудит | SELECT |
 
-### Разделение доступа
-
-- Приложение ходит **под `afina_app`** (`spring.datasource.username`)
-- Flyway ходит **под `afina_migrator`** (`spring.flyway.user`)
-- Superuser (`postgres`) используется **только** для:
-  - Restore из бэкапа (`BackupService.runPsqlCommandAsSuperuser`)
-  - Init-скриптов в первый запуск
+Superuser (`postgres`) — только для restore и init-скриптов.
 
 ### Default privileges
 
@@ -346,22 +369,19 @@ IV дублируется в БД (`documents.encryption_iv`, base64) для
 
     ALTER DEFAULT PRIVILEGES FOR ROLE afina_migrator IN SCHEMA public
         GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO afina_app;
-
     ALTER DEFAULT PRIVILEGES FOR ROLE afina_migrator IN SCHEMA public
         GRANT SELECT ON TABLES TO afina_auditor;
-
     ALTER DEFAULT PRIVILEGES FOR ROLE afina_migrator IN SCHEMA public
         GRANT USAGE, SELECT ON SEQUENCES TO afina_app;
-
     ALTER DEFAULT PRIVILEGES FOR ROLE afina_migrator IN SCHEMA public
         GRANT SELECT ON SEQUENCES TO afina_auditor;
 
 ### Что это даёт
 
-- **SQL-инъекция** в приложении не даст DROP TABLE — `afina_app` не имеет DDL
-- **Утечка пароля приложения** не откроет запись — только CRUD по данным
-- **Аудитор** видит всё, но не может ничего изменить
-- **Компрометация `afina_migrator`** опаснее, но пароль используется только Flyway при старте
+- SQL-инъекция в приложении не даст DROP TABLE — `afina_app` не имеет DDL
+- Утечка пароля приложения не откроет запись — только CRUD по данным
+- Аудитор видит всё, но не может ничего изменить
+- Компрометация `afina_migrator` опаснее, но пароль используется только Flyway при старте
 
 ---
 
@@ -372,182 +392,182 @@ IV дублируется в БД (`documents.encryption_iv`, base64) для
 | Колонка | Тип | Описание |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| email | VARCHAR(255) UNIQUE | для клиентов; для админов синтетический `<cn>+<snils>@ukep.local` |
-| full_name | VARCHAR(255) | ФИО |
-| phone | VARCHAR(50) | |
+| email_enc | TEXT | Email, AES-256-GCM |
+| email_hash | VARCHAR(64) | SHA-256, unique |
+| phone_enc | TEXT | Телефон, AES-256-GCM |
+| phone_hash | VARCHAR(64) | SHA-256 digits, nullable |
+| full_name | VARCHAR(255) | ФИО, plaintext |
 | role | VARCHAR(30) | ROLE_USER / ROLE_ADMIN |
 | enabled | BOOLEAN | false = заблокирован |
-| login_token | VARCHAR(128) | magic-link токен |
-| login_token_expires | TIMESTAMPTZ | TTL 10 часов |
+| login_token | VARCHAR(128) | magic-link |
+| login_token_expires | TIMESTAMPTZ | TTL 10ч |
 | login_token_used_at | TIMESTAMPTZ | первое использование |
 | last_login_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | |
 
-Индексы: `email`, `login_token`, `role`.
+Индексы: `email_hash` (unique), `phone_hash`, `login_token`, `role`.
 
 ### documents
 
 | Колонка | Тип | Описание |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| original_name | VARCHAR(500) | имя от клиента |
+| original_name_enc | TEXT | AES-256-GCM |
 | stored_name | VARCHAR(500) | `<uuid>_<sanitized>.enc` |
 | content_type | VARCHAR(200) | MIME |
-| size | BIGINT | размер ОРИГИНАЛА |
-| file_sha256 | VARCHAR(64) | sha256 ОРИГИНАЛА |
+| size | BIGINT | размер оригинала |
+| file_sha256 | VARCHAR(64) | sha256 оригинала |
 | signature_base64 | TEXT | legacy, дублируется в document_signatures |
 | signed | BOOLEAN | есть хотя бы одна подпись |
 | signed_at | TIMESTAMPTZ | |
-| signer_subject | VARCHAR(500) | CN первого подписанта |
-| signer_serial | VARCHAR(100) | serial первого подписанта |
+| signer_subject_enc | VARCHAR(1000) | CN первого подписанта |
+| signer_serial | VARCHAR(100) | |
 | uploaded_at | TIMESTAMPTZ | |
 | owner_id | BIGINT FK → users(id) ON DELETE CASCADE | |
-| encryption_iv | VARCHAR(32) | base64 IV (V6) |
-| key_version | VARCHAR(20) FK → file_keys(version) | (V6) |
-| encrypted | BOOLEAN | (V6) |
+| encryption_iv | VARCHAR(32) | base64 IV |
+| key_version | VARCHAR(20) FK → file_keys(version) | |
+| encrypted | BOOLEAN | |
 
 Индексы: `owner_id`, `signed`, `uploaded_at DESC`.
 
-### document_signatures (V5)
+### document_signatures
 
 | Колонка | Тип | Описание |
 |---|---|---|
 | id | BIGSERIAL PK | |
 | document_id | BIGINT FK → documents(id) ON DELETE CASCADE | |
-| signature_base64 | TEXT | CAdES-BES detached |
+| signature_base64 | TEXT | CAdES-BES |
 | signed_at | TIMESTAMPTZ | |
-| signer_subject | VARCHAR(500) | CN |
-| signer_serial | VARCHAR(100) | serial (hex) |
+| signer_subject_enc | VARCHAR(1000) | CN, AES-GCM |
+| signer_serial | VARCHAR(100) | |
 | signer_user_id | BIGINT FK → users(id) ON DELETE SET NULL | |
 
-Индексы: `document_id`, `signed_at DESC`.
+**Одна запись = одна подпись. Документ может иметь N подписей.**
 
-**Особенность:** одна запись = одна подпись. Документ может иметь
-неограниченное число подписей (несколько сторон, повторные подписи).
+### file_keys
 
-### file_keys (V6)
+| Колонка | Тип |
+|---|---|
+| version | VARCHAR(20) UNIQUE, `v1` |
+| algorithm | VARCHAR(50), `AES-256-GCM` |
+| active | BOOLEAN |
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| id | BIGSERIAL PK | |
-| version | VARCHAR(20) UNIQUE | `v1`, `v2`, ... |
-| algorithm | VARCHAR(50) | `AES-256-GCM` |
-| created_at | TIMESTAMPTZ | |
-| active | BOOLEAN | используется для новых файлов |
-| comment | VARCHAR(500) | |
+### app_settings
 
-Одна активная версия в любой момент времени.
+| Колонка | Тип |
+|---|---|
+| key | VARCHAR(100) PK |
+| value | TEXT |
+| description | VARCHAR(500) |
+| updated_at | TIMESTAMPTZ |
+| updated_by | VARCHAR(255) |
 
-### flyway_schema_history
+Ключи: `monitor.mail_to`, `monitor.enabled`, `revocation.mode`,
+`auth.rate_limit.login`, `auth.rate_limit.window_min`, `smtp.*`,
+`audit.retention_days`, `keys.last_backup_at`, `keys.download_count`.
 
-Стандартная таблица Flyway. Миграции:
+### audit_events
 
-| V | Файл | Что делает |
-|---|---|---|
-| 1 | V1__init.sql | users, documents + индексы + комментарии |
-| 2 | V2__grants.sql | роли БД, права, default privileges |
-| 3 | V3__ownership.sql | владелец схемы public |
-| 4 | V4__login_token_used_at.sql | колонка для анти-prefetch |
-| 5 | V5__document_signatures.sql | таблица множественных подписей |
-| 6 | V6__file_encryption.sql | AES-GCM: file_keys + поля documents |
+| Колонка | Тип |
+|---|---|
+| event_time | TIMESTAMPTZ |
+| event_type | VARCHAR(50) |
+| result | VARCHAR(20): SUCCESS / FAIL / WARN |
+| actor_email | VARCHAR(500) |
+| actor_role | VARCHAR(30) |
+| actor_ip | VARCHAR(64) |
+| target_type | VARCHAR(50) |
+| target_id | VARCHAR(50) |
+| target_info | VARCHAR(500) |
+| details | TEXT |
+| user_agent | VARCHAR(500) |
+
+Индексы: `event_time DESC`, `event_type`, `actor_email`, `result`.
+
+### monitor_events
+
+| Колонка | Тип |
+|---|---|
+| checked_at | TIMESTAMPTZ |
+| status | VARCHAR(20): OK / FAIL |
+| reason | VARCHAR(500) |
+| alert_sent | BOOLEAN |
+
+### flyway_schema_history — стандартная
+
+Миграции V1–V14:
+
+| V | Что делает |
+|---|---|
+| 1 | init: users, documents |
+| 2 | grants: роли БД, права |
+| 3 | ownership: владелец схемы |
+| 4 | login_token_used_at |
+| 5 | document_signatures |
+| 6 | file_encryption: file_keys + AES-поля |
+| 7 | app_settings |
+| 8 | monitor_history |
+| 9 | pii_user: email_enc/hash, phone_enc/hash |
+| 10 | pii_documents: original_name_enc, signer_subject_enc |
+| 11 | audit_events |
+| 12 | audit_retention |
+| 13 | smtp_settings |
+| 14 | drop plaintext email/phone/original_name/signer_subject |
 
 ---
 
 ## Криптография УКЭП
 
-### Проверка подписи на сервере
+### Проверка подписи
 
-Класс `SignatureVerifier` (основной путь — BouncyCastle) и
-`SignatureService` (JCSP/CAdES, legacy). Оба используют одни и те же
-принципы.
+Класс `SignatureVerifier` — на BouncyCastle (не JCSP).
 
 **Шаги:**
 
-1. **Очистка base64:**
-   - Убираются `-----BEGIN ...-----` / `-----END ...-----`
-   - Убираются пробелы и непечатные символы
+1. **Очистка base64:** убрать `-----BEGIN...-----`, пробелы, не-печатные.
+2. **Парсинг CMS:** `CMSSignedData(content, signatureBytes)`. Content известен (файл или challenge).
+3. **Поиск сертификата подписанта:** `cms.getCertificates().getMatches(signer.getSID())`.
+4. **Криптопроверка:**
+   - BouncyCastle `JcaSimpleSignerInfoVerifierBuilder` (primary)
+   - JCSP (fallback для ГОСТ-2012)
+5. **Chain building** (ручной, не PKIX):
+   - Начинаем с leaf, ищем issuer по `subject == issuerX500Principal`
+   - Проверяем подпись каждого звена (`cert.verify(issuer.getPublicKey())`)
+   - До самоподписанного корня
+6. **Проверка корня в truststore** (`/app/certs/*.cer`):
+   - `subject` и `publicKey` должны совпасть
+7. **Проверка срока каждого звена:** `cert.checkValidity()`
+8. **Проверка отзыва по CRL** (`/app/crls/*.crl`):
+   - Ищем CRL по `issuer`
+   - Дедупликация по issuer — берём свежайший
+   - Если сертификат в CRL → отказ
 
-2. **Парсинг CMS/CAdES:**
-   - `CMSSignedData(content, signatureBytes)` — контент известен (это
-     файл или challenge), подпись отдельно (detached)
-   - `cms.getSignerInfos().getSigners()` — список подписантов
-
-3. **Поиск сертификата подписанта:**
-   - `cms.getCertificates().getMatches(signer.getSID())` — по SID
-     из подписи
-   - Если сертификата в подписи нет — ошибка
-
-4. **Криптографическая проверка:**
-   - `signer.verify(JcaSimpleSignerInfoVerifierBuilder.build(cert))`
-   - BouncyCastle проверяет подпись по публичному ключу
-   - ГОСТ-2012 поддерживается BC + CryptoPro JCSP
-
-5. **Извлечение метаданных:**
-   - `cert.getSubjectX500Principal()` — X.500 DN
-   - Парсинг CN через regex `CN=([^,]+)` или `LdapName`
-   - `cert.getSerialNumber().toString(16)` — serial
-
-**Что НЕ проверяет `SignatureVerifier` (упрощённый путь):**
-
-- Цепочку до корневого УЦ
-- Отзыв по CRL/OCSP
-- Срок действия сертификата
-
-Эти проверки делает `SignatureService` через CryptoPro JCSP:
-`cades.verify(trustedCerts, crls)`.
+**Почему не JCSP `cades.verify()`:** JCSP игнорирует переданный truststore
+и ищет корни в своём `/var/opt/cprocsp`, которого в контейнере нет.
+Отсюда ошибка «Root certificate is untrusted» на любом сертификате клиента.
 
 ### Truststore
 
-Источники доверенных сертификатов (`SignatureService.loadTrustedCerts`):
+Источники в `SignatureVerifier.loadTrustedCerts()`:
 
-1. `/app/certs/*.cer` и `*.crt` — корневые УЦ и промежуточные
-   (монтируется из `certs/` репозитория)
-2. `$JAVA_HOME/lib/security/cacerts` — стандартный Java truststore
-   (`changeit`)
-
-### CRL
-
-`kontur-q-2025.crl` монтируется в `/app/kontur-q-2025.crl` (read-only).
-
-Проверка отзыва — через системные свойства JVM
-(`CryptoProInitializer`):
-
-    com.sun.security.enableCRLDP=true
-    ocsp.enable=true
-    ru.CryptoPro.reprov.enableCRLDP=true
-    ru.CryptoPro.reprov.enableAIAcaIssuers=true
-
-Без этих свойств CAdES падает с ошибкой
-`Could not determine revocation status`.
+1. `/app/certs/*.cer` — корневые УЦ (монтируется из `certs/`)
+2. `$JAVA_HOME/lib/security/cacerts` — Java truststore
 
 ### Что видит сервер
 
-При верификации сервер получает:
-
-- CN (ФИО), SNILS (если в сертификате)
+- CN, СНИЛС (если есть)
 - Serial (hex)
 - X.500 DN
 - Issuer DN
 - ValidFrom / ValidTo
 
-**Приватный ключ НЕ покидает токен.** Плагин CryptoPro CAdES
-подписывает **локально** на клиенте, отправляет только подпись.
-Используется `CADESCOM_CADES_BES` + `CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY`.
-
-### Схема подписи
-
-- Формат: **CAdES-BES detached**
-- Контент — оригинальный файл (не шифротекст)
-- Подпись хранится в БД (base64), не в файловой системе
-- Один документ — N подписей
+**Приватный ключ НЕ покидает токен.** Плагин CAdES подписывает локально,
+отправляет только подпись.
 
 ### Валидация на фронте
 
-`sign.js` после успешной подписи получает от сервера:
-
-    {valid: true, signersCount: N, signersInfo: "..."}
-
-Если `valid=false` — показывается ошибка, подпись не сохраняется.
+`sign.js` после подписи получает от сервера `{valid: true, signersCount, signersInfo}`.
+При `valid=false` — ошибка, подпись не сохраняется.
 
 ---
 
@@ -555,77 +575,129 @@ IV дублируется в БД (`documents.encryption_iv`, base64) для
 
 ### Архитектура
 
-CRL хранятся в каталоге `/app/crls/` внутри контейнера (монтируется из
-`/opt/afina/crls/`). `SignatureService.loadAllCrls()` читает **все**
-`*.crl` из каталога при каждой проверке подписи. Парсинг — через
-`CertificateFactory.getInstance("X.509").generateCRL()`.
+`CrlDownloader` — сервис в приложении.
 
-Один битый файл не валит всю проверку — логируется warning и
-пропускается.
+**При каждой проверке подписи:**
 
-### Источники CRL
+1. Извлекает все сертификаты из CMS (`cms.getCertificates()`)
+2. Для каждого — читает CDP URL из расширения `2.5.29.31`
+3. Для каждого URL:
+   - filename = `auto-<sha256(url)[:16]>.crl`
+   - если файл существует и младше 12 часов — пропускаем
+   - иначе скачиваем с `User-Agent: Afina-CRL-Downloader/1.0`
+4. `SignatureVerifier` читает **все** `*.crl` из `/app/crls/`
+5. Дедупликация по issuer — оставляется самый свежий (по `thisUpdate`)
 
-| Источник | Как попадает |
+### Cron
+
+- `afina-crl-cleanup` (вс 4:00) — `cleanup-crls.sh` удаляет `auto-*.crl`
+  старше 90 дней
+- Ручные CRL (не `auto-*`) не удаляются никогда
+
+### Что делать вручную
+
+Если УЦ не даёт стабильный CDP URL или он недоступен:
+
+1. Скачать `.crl` вручную с сайта УЦ
+2. Положить в `/opt/afina/crls/`
+3. `chmod 644`, `chown 999:999`
+4. `afina restart`
+
+### Ошибка «Нет CRL для …»
+
+В `checkNotRevoked()` — если CRL для issuer не найден, **warning** и
+проверка отзыва для этого звена пропускается. Это **soft-fail**:
+подпись принимается.
+
+Текущий режим: `revocation.mode = soft` в `app_settings`.
+
+| Режим | Поведение |
 |---|---|
-| Ручная загрузка | `scp file.crl afina-vps:/opt/afina/crls/` |
-| `update-crls.sh` | Cron каждые 6 часов |
-| JCSP (autofetch) | По URL из AIA-расширения сертификата (если включены системные свойства) |
+| `strict` | Отказ при отсутствии CRL (не реализовано) |
+| `soft` | Warning, подпись принимается (текущий) |
+| `off` | Проверка отзыва полностью отключена |
 
-Формат `crl-sources.conf`:
+---
 
-    <имя_файла>|<URL>
+## Rate limiting
 
-Пример:
+`RateLimitService` — in-memory `ConcurrentHashMap<key, Bucket>`,
+fixed window. `Bucket = (AtomicInteger count, Instant resetAt)`.
 
-    kontur-q-2025.crl|http://crl.kontur.ru/file.crl
+`RateLimitFilter` (`@Order(HIGHEST_PRECEDENCE)`) — работает **до**
+Spring Security, чтобы CSRF не блокировал запросы раньше rate limit.
 
-### Скрипт update-crls.sh
+| Endpoint | Лимит | Ключ |
+|---|---|---|
+| `POST /login` | 5 / 15 мин | `login:<ip>:<email>` |
+| `GET /admin/challenge` | 10 / 15 мин | `challenge:<ip>` |
+| `POST /admin/cert-login` | 5 / 15 мин | `certlogin:<ip>` |
+| `GET /login/confirm` | 20 / 15 мин | `confirm:<ip>` |
 
-- Читает `crl-sources.conf`
-- Скачивает каждый URL через `curl --max-time 30`
-- Атомарная замена: сначала во временный файл, потом `mv` (никогда
-  не оставит половинчатый файл)
-- Идемпотентно: `cmp -s` — если файл не изменился, не перезаписывает
-- Exit 1 при ошибках (cron запишет в лог)
+При превышении: `429 Too Many Requests` + `Retry-After: <секунды>`.
 
-Запуск:
+`X-Forwarded-For` от Caddy — берётся первый IP.
 
-    cd /opt/afina
-    ./update-crls.sh
+**Клиент очистки:** `@Scheduled(fixedDelay = 300_000)` в `RateLimitService`.
 
-### Скрипт extract-crl-urls.sh
+Для горизонтального масштабирования нужно Redis-based решение.
 
-Принимает `.cer`/`.pem`/`.crt` (PEM или DER), извлекает:
+---
 
-- Subject
-- Issuer
-- CRL Distribution Points (URL)
-- Authority Information Access (OCSP URL)
-- Subject/Authority Key Identifier
+## Аудит
 
-Использует `openssl x509 -text` и awk-разбор. Нужен, чтобы **не
-угадывать** URL CRL — они берутся только из сертификата клиента.
+`AuditService` пишет события в `audit_events` в `@Transactional(REQUIRES_NEW)`,
+чтобы падение audit не откатывало основную бизнес-операцию.
 
-### Системные свойства JVM
+**Типы событий:**
 
-В `CryptoProInitializer` устанавливаются:
+- `LOGIN_SUCCESS`, `LOGIN_FAIL`
+- `ADMIN_LOGIN_SUCCESS`, `ADMIN_LOGIN_FAIL`
+- `USER_CREATE`, `USER_UPDATE`, `USER_DELETE`
+- `DOC_UPLOAD`, `DOC_DELETE`
+- `SIGN_SUCCESS`, `SIGN_FAIL`
+- `SIGNATURE_DELETE_ATTEMPT` (попытки обхода защиты)
+- `EMAIL_SENT`, `EMAIL_FAIL`
+- `BACKUP_CREATE`, `BACKUP_RESTORE`
+- `APP_RESTART`, `SETTINGS_UPDATE`, `KEYS_DOWNLOAD`
+- `RATE_LIMIT`
 
-    com.sun.security.enableCRLDP=true
-    com.ibm.security.enableCRLDP=true
-    ocsp.enable=true
-    com.sun.security.enableAIAcaIssuers=true
-    ru.CryptoPro.reprov.enableAIAcaIssuers=true
-    ru.CryptoPro.reprov.enableCRLDP=true
+**Поля:**
+- `actor_email` — email клиента или CN админа
+- `actor_ip` — реальный IP (с XFF)
+- `target_type` / `target_id` / `target_info` — что затронуто
+- `details` — свободный текст (ошибки, обстоятельства)
+- `user_agent` — браузер
 
-Без этих свойств CAdES падает с `Could not determine revocation status`.
+**Retention:** `audit.retention_days` (по умолчанию 365).
+`AuditCleanupService.dailyCleanup()` в 04:00 + кнопка «Очистить сейчас»
+в UI.
 
-### Ссылки
+---
 
-- [CRL-SETUP.md](CRL-SETUP.md) — пользовательская инструкция по CRL
-- RFC 5280: https://datatracker.ietf.org/doc/html/rfc5280
+## Мониторинг
 
-## API
+Два независимых механизма:
 
+### 1. Внутренний (`MonitoringService`)
+
+- `@Scheduled(fixedDelay = 300_000, initialDelay = 60_000)`
+- Проверяет `http://localhost:8080/actuator/health`
+- Пишет в `monitor_events`
+- Счётчик подряд идущих сбоев в `app_settings`
+- При 3 подряд → `EmailService.sendAlert()`
+- **Не работает, если app полностью упал** (живёт внутри app)
+
+### 2. Внешний (`monitor.sh`, cron каждые 5 минут)
+
+- Проверяет: локальный health через `docker exec`, внешний HTTPS,
+  контейнеры через `docker compose ps`
+- State в `logs/monitor.state` (consecutive fails)
+- При 3 сбоях → письмо через Python SMTP (читает `monitor.mail_to`
+  из БД)
+- **Работает даже если app упал**
+
+Оба шлют email на адрес из `monitor.mail_to` в `app_settings`.
 ### Аутентификация
 
 | Метод | Путь | Auth | Назначение |
@@ -649,10 +721,9 @@ CRL хранятся в каталоге `/app/crls/` внутри контей�
 | GET | /documents/{id}/view | user | просмотр (inline) |
 | GET | /documents/{id}/download | user | скачать оригинал |
 | GET | /documents/{id}/download-signed | user | ZIP: файл + подпись |
-| GET | /documents/{id}/signature/download | user | скачать .sig (legacy, первая подпись) |
-| GET | /documents/{id}/signatures/{sigId}/download | user | скачать конкретную подпись |
-| POST | /documents/{id}/signatures/{sigId}/delete | user | удалить подпись |
-| POST | /documents/{id}/delete | user | удалить документ |
+| GET | /documents/{id}/signatures/{sigId}/download | user | скачать .sig |
+| POST | /documents/{id}/signatures/{sigId}/delete | user | запрещено (400) |
+| POST | /documents/{id}/delete | user | удалить (только неподписанный) |
 
 ### Подпись
 
@@ -661,195 +732,12 @@ CRL хранятся в каталоге `/app/crls/` внутри контей�
 | POST | /api/sign/accept | user | подписать свой документ |
 | POST | /api/sign/admin/accept | admin | подписать документ клиента |
 
-Request body (JSON):
+Request:
+```json
+{
+  "documentId": 42,
+  "signatureBase64": "MIIF..."
+}
 
-    {
-      "documentId": 42,
-      "signatureBase64": "MIIF..."
-    }
-
-Response (200):
-
-    {
-      "valid": true,
-      "signersCount": 1,
-      "signersInfo": "CN=..., serial=..."
-    }
-
-### Админ
-
-| Метод | Путь | Auth | Назначение |
-|---|---|---|---|
-| GET | /admin | admin | дашборд |
-| GET | /admin/users | admin | список клиентов |
-| POST | /admin/users | admin | создать |
-| GET | /admin/users/{id} | admin | карточка клиента |
-| GET | /admin/users/{id}/edit | admin | форма редактирования |
-| POST | /admin/users/{id} | admin | обновить |
-| POST | /admin/users/{id}/delete | admin | удалить |
-| POST | /admin/users/{id}/toggle | admin | вкл/выкл |
-| POST | /admin/users/{id}/send-login-link | admin | отправить magic-link |
-| GET | /admin/users/{id}/signatures.zip | admin | ZIP всех подписей |
-| POST | /admin/users/{userId}/documents/upload | admin | загрузить за клиента |
-| GET | /admin/documents/{id}/view | admin | просмотр |
-| GET | /admin/documents/{id}/download | admin | скачать |
-| POST | /admin/documents/{id}/delete | admin | удалить |
-| GET | /admin/documents/{id}/signature/download | admin | скачать подпись |
-| GET | /admin/documents/{id}/signatures/{sigId}/download | admin | |
-| POST | /admin/documents/{id}/signatures/{sigId}/delete | admin | |
-
-### Система
-
-| Метод | Путь | Auth | Назначение |
-|---|---|---|---|
-| GET | /admin/system | admin | страница «Система» |
-| POST | /admin/system/backups/create | admin | создать бэкап |
-| GET | /admin/system/backups/{name}/download | admin | скачать бэкап |
-| POST | /admin/system/backups/{name}/delete | admin | удалить бэкап |
-| POST | /admin/system/backups/{name}/restore | admin | восстановить БД |
-| GET | /admin/system/logs?lines=N | admin | tail лога |
-| POST | /admin/system/restart | admin | перезапуск приложения |
-| GET | /actuator/health | – | healthcheck |
 
 ---
-
-## Эксплуатация
-
-### Обновление без downtime
-
-Текущая схема — простой перезапуск (30–60 сек простоя).
-Для zero-downtime нужен blue-green (см. отдельную итерацию).
-
-Процедура:
-
-    cd /opt/afina
-    git pull
-    docker compose -f docker-compose-prod.yml --env-file .env.prod \
-      build --no-cache app
-    docker compose -f docker-compose-prod.yml --env-file .env.prod \
-      up -d app
-
-Flyway применит новые миграции.
-
-### Мониторинг
-
-Доступные метрики:
-
-- `/actuator/health` — UP/DOWN + статус БД
-- `/actuator/info`
-- pgAudit-логи (DML/DDL)
-- `pg_stat_statements` — топ запросов
-- UI `/admin/system` — CPU, RAM, диск, размер БД, миграции, логи
-
-**Нет:** Prometheus-метрик, Grafana, алертов. Отдельная итерация.
-
-### Бэкап и восстановление
-
-Автоматически:
-
-- Cron `/etc/cron.d/afina-backup` — ежедневно 3:00
-- `backup-prod.sh` — дамп БД + архив `storage/`
-- Ротация: 30 дней
-
-Вручную:
-
-    cd /opt/afina
-    ./backup-prod.sh
-    # или через UI /admin/system
-
-**Ключ шифрования НЕ в бэкапе.** Хранить отдельно.
-
-### Обновление схемы БД
-
-Новая миграция:
-
-1. Создать `src/main/resources/db/migration/V{N+1}__description.sql`
-2. Git push
-3. На сервере: `git pull && docker compose ... up -d app`
-4. Flyway применит при старте
-
-**Нельзя** менять уже применённые миграции — Flyway ругнётся при валидации.
-
-### Ротация ключа шифрования
-
-Не реализована. Требуется утилита `RotateEncryptionKey`:
-
-1. Читает старый ключ из `OLD_PATH`
-2. Читает новый ключ из `NEW_PATH`
-3. Для каждого `Document`: decrypt(old) → encrypt(new)
-4. Обновляет `encryption_iv`, `key_version` на новый
-5. Перезаписывает файл
-
-Пока ключ один (`v1`). Поле `key_version` в БД подготовлено.
-
-### Диагностика
-
-UI `/admin/system` → раздел «Диагностика»:
-
-- Доступность БД
-- Роли (3 ожидаются)
-- Документы без владельца
-- Подписи без документа
-- Размер БД
-- Все миграции успешны
-- Активные соединения
-
-CLI:
-
-    docker exec afina-postgres psql -U postgres -d afina_db -c "\dt"
-    docker exec afina-postgres psql -U postgres -d afina_db -c "\dx"
-    docker exec afina-postgres psql -U postgres -d afina_db -c \
-      "SELECT * FROM pg_stat_activity WHERE datname='afina_db';"
-
-### Обновление security-патчей
-
-Unattended-upgrades установлен, автоматом ставит только security-обновления.
-Проверить:
-
-    unattended-upgrade --dry-run -d
-
-Перезагрузка после ядерных патчей:
-
-    # убедиться, что всё в порядке:
-    docker compose -f /opt/afina/docker-compose-prod.yml \
-      --env-file /opt/afina/.env.prod ps
-    reboot
-
-После ребута все контейнеры поднимутся автоматически (`restart: unless-stopped`).
-
-### Известные ограничения
-
-- Нет rate-limiting на `/login` и `/admin/challenge`
-- Нет MFA (только сертификат или email)
-- Нет WAF перед Caddy
-- Нет мониторинга (Prometheus/Grafana)
-- Нет репликации БД
-- Нет zero-downtime deploy
-- Ключ шифрования на том же сервере (не KMS)
-- Бэкапы не шифруются (но дампы БД содержат только метаданные)
-- Бэкапы не выгружаются на внешнее хранилище
-
-### Дальнейшие итерации
-
-1. **WAF** — Cloudflare или ModSecurity+OWASP CRS
-2. **Rate limiting** — Bucket4j или Caddy rate_limit
-3. **KMS** — HashiCorp Vault для ключа шифрования
-4. **Мониторинг** — Prometheus + Grafana + алерты
-5. **Zero-downtime deploy** — blue-green через Caddy upstream
-6. **Ротация ключа** — утилита `RotateEncryptionKey`
-7. **Внешние бэкапы** — S3 / rclone раз в сутки
-8. **Docker healthcheck** — сейчас есть только у app и postgres
-9. **2FA для админов** — ТОП по желанию
-10. **Репликация БД** — streaming replication для HA
-
----
-
-## Ссылки
-
-- Spring Boot: https://docs.spring.io/spring-boot/docs/3.2.5/reference/html/
-- PostgreSQL 16: https://www.postgresql.org/docs/16/
-- Flyway: https://documentation.red-gate.com/flyway
-- pgAudit: https://github.com/pgaudit/pgaudit
-- Caddy 2: https://caddyserver.com/docs/
-- КриптоПро CSP: https://www.cryptopro.ru/products/csp
-- КриптоПро CAdES: https://www.cryptopro.ru/products/cades
