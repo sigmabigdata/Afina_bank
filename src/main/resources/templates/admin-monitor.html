@@ -49,7 +49,15 @@
                 <span th:if="${enabled}" class="badge ok">Включён</span>
                 <span th:unless="${enabled}" class="badge warn">Выключен</span>
             </div>
-            <div class="metric-sub">проверка раз в 5 минут</div>
+            <div class="metric-sub">
+                проверка раз в 5 минут
+                <span th:if="${lastCheckAt != null}">
+                    · последняя: <b th:text="${#temporals.format(lastCheckAt,'HH:mm:ss')}">—</b>
+                </span>
+                <span th:if="${lastCheckAt == null}" class="muted">
+                    · последняя: нет данных
+                </span>
+            </div>
         </div>
 
         <div class="metric-card">

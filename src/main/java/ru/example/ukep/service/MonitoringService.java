@@ -79,7 +79,23 @@ public class MonitoringService {
             log.info("Восстановление после {} сбоев", fails);
             saveEvent("OK", "Восстановление после " + fails + " сбоев", false);
             settings.set("monitor.consecutive_fails", "0", "system");
+            return;
         }
+
+        // Периодически пишем OK-события, чтобы админ видел жизнь сервиса
+        // Пишем не чаще, чем раз в час
+        java.time.Instant lastOk = getLastOkAt();
+        java.time.Instant hourAgo = java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.HOURS);
+        if (lastOk == null || lastOk.isBefore(hourAgo)) {
+            saveEvent("OK", "Регулярная проверка", false);
+            settings.set("monitor.last_ok_at", java.time.Instant.now().toString(), "system");
+        }
+    }
+
+    private java.time.Instant getLastOkAt() {
+        String v = settings.getOrDefault("monitor.last_ok_at", "");
+        if (v.isBlank()) return null;
+        try { return java.time.Instant.parse(v); } catch (Exception e) { return null; }
     }
 
     @Transactional

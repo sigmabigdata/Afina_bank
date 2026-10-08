@@ -57,6 +57,12 @@ public class MonitorController {
                 .findRecentByTypeAndResult("EMAIL_FAIL", "FAIL",
                         org.springframework.data.domain.PageRequest.of(0, 10));
         model.addAttribute("emailErrors", lastErrors);
+        // Последняя проверка
+        java.util.List<MonitorEvent> all = events.findAllByOrderByCheckedAtDesc(
+                org.springframework.data.domain.PageRequest.of(0, 1));
+        if (!all.isEmpty()) {
+            model.addAttribute("lastCheckAt", all.get(0).getCheckedAt());
+        }
         return "admin-monitor";
     }
 
