@@ -54,15 +54,12 @@ public class SignatureVerifier {
     }
 
     private final ThreadLocal<String> lastCn = new ThreadLocal<>();
-    private final CrlDownloader crlDownloader;
     private final Path certsDir;
     private final Path crlsDir;
 
     public SignatureVerifier(
-            CrlDownloader crlDownloader,
             @Value("${app.certificates-path:/app/certs}") String certsPath,
             @Value("${app.crl-path:/app/crls}") String crlsPath) {
-        this.crlDownloader = crlDownloader;
         this.certsDir = Paths.get(certsPath);
         this.crlsDir = Paths.get(crlsPath);
         log.info("SignatureVerifier: certs={}, crls={}", certsDir, crlsDir);
@@ -86,19 +83,8 @@ public class SignatureVerifier {
 
         Set<X509Certificate> truststore = loadTrustedCerts();
 
-        // 0) Собрать все сертификаты подписантов + intermediates из CMS,
-        //    затем подкачать их CRL по CDP (идемпотентно, с TTL 12ч)
-        Set<X509Certificate> allSignerCerts = extractAllCerts(cms);
-        try {
-            int downloaded = crlDownloader.ensureCrlsFor(allSignerCerts);
-            if (downloaded > 0) {
-                log.info("CrlDownloader: подкачано/обновлено {} CRL", downloaded);
-            }
-        } catch (Exception e) {
-            log.warn("CrlDownloader failed: {}", e.getMessage());
-        }
-
-        // Теперь читаем CRL из директории (там уже и свежескачанные)
+        // CRL обновляются фоново в CrlRefreshService (каждые 6 часов).
+        // Здесь только читаем то, что уже есть. Отсутствие CRL = soft-fail.
         Set<X509CRL> crls = loadAllCrls();
 
         Map<String, Object> result = new HashMap<>();
