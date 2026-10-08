@@ -234,6 +234,37 @@ public class SystemInfoService {
         return info;
     }
 
+    /** Размер файлов в storage/documents. */
+    public java.util.Map<String, Object> getStorageSize() {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        try {
+            java.nio.file.Path root = java.nio.file.Paths.get(
+                    System.getProperty("app.storage-path", "/app/storage/documents"));
+            if (!java.nio.file.Files.isDirectory(root)) {
+                root = java.nio.file.Paths.get("/app/storage/documents");
+            }
+            long total = 0;
+            long count = 0;
+            try (var stream = java.nio.file.Files.walk(root)) {
+                var list = stream.filter(java.nio.file.Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".enc"))
+                        .toList();
+                for (var f : list) {
+                    total += java.nio.file.Files.size(f);
+                    count++;
+                }
+            }
+            result.put("bytes", total);
+            result.put("pretty", prettySize(total));
+            result.put("files", count);
+        } catch (Exception e) {
+            result.put("bytes", 0L);
+            result.put("pretty", "n/a");
+            result.put("files", 0L);
+        }
+        return result;
+    }
+
     public String prettySize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";

@@ -44,6 +44,7 @@ public class SystemInfoController {
         model.addAttribute("cpu", sys.getCpu());
         model.addAttribute("disk", sys.getDisk());
         model.addAttribute("db", sys.getDatabaseStats());
+        model.addAttribute("storage", sys.getStorageSize());
         model.addAttribute("runtime", sys.getRuntimeInfo());
         model.addAttribute("backups", backups.list());
         model.addAttribute("checks", sys.runDiagnostics());

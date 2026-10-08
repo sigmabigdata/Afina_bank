@@ -77,9 +77,19 @@
 
         <div class="metric-card">
             <div class="metric-icon">🗄</div>
-            <div class="metric-label">Размер БД</div>
+            <div class="metric-label">БД (метаданные)</div>
             <div class="metric-value-small" th:text="${db['sizePretty']}">0</div>
             <div class="metric-sub">соединений: <b th:text="${db['connections']}">0</b></div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-icon">📁</div>
+            <div class="metric-label">Файлы (storage)</div>
+            <div class="metric-value-small" th:text="${storage['pretty']}">0</div>
+            <div class="metric-sub">
+                файлов: <b th:text="${storage['files']}">0</b>
+                <span class="muted"> · зашифрованы</span>
+            </div>
         </div>
 
         <div class="metric-card">
@@ -166,6 +176,15 @@
             </tbody>
         </table>
     </section>
+
+    <div class="alert info" style="margin: 16px 0;">
+        <b>Почему размер БД не уменьшается при удалении?</b>
+        Файлы документов хранятся на диске в <code>storage/documents/</code>,
+        в БД — только метаданные. PostgreSQL не уменьшает размер файла
+        БД при <code>DELETE</code> — освободившееся место переиспользуется
+        (<code>autovacuum</code>). Реальный размер файлов смотри в карточке
+        <b>«Файлы (storage)»</b> выше.
+    </div>
 
     <div class="two-col">
         <section class="panel">
