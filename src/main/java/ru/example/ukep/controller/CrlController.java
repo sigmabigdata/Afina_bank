@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.example.ukep.service.CrlDownloader;
-import ru.example.ukep.service.CrlRefreshService;
 import ru.example.ukep.service.CrlService;
 
 import java.util.HashSet;
@@ -21,11 +20,9 @@ public class CrlController {
     private static final Logger log = LoggerFactory.getLogger(CrlController.class);
 
     private final CrlService crlService;
-    private final CrlRefreshService refreshService;
 
-    public CrlController(CrlService crlService, CrlRefreshService refreshService) {
+    public CrlController(CrlService crlService) {
         this.crlService = crlService;
-        this.refreshService = refreshService;
     }
 
     @GetMapping
@@ -64,21 +61,6 @@ public class CrlController {
             ra.addFlashAttribute("ok", "Удалён: " + name);
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Ошибка удаления: " + e.getMessage());
-        }
-        return "redirect:/admin/crl";
-    }
-
-    /** Обновить все CRL сейчас (ручной запуск CrlRefreshService). */
-    @PostMapping("/refresh-all")
-    public String refreshAll(RedirectAttributes ra) {
-        try {
-            long t0 = System.currentTimeMillis();
-            refreshService.refreshAll();
-            long dt = System.currentTimeMillis() - t0;
-            ra.addFlashAttribute("ok", "Обновление завершено за " + dt + " мс. Смотри лог app.");
-        } catch (Exception e) {
-            log.error("CRL refresh-all failed", e);
-            ra.addFlashAttribute("err", "Ошибка обновления: " + e.getMessage());
         }
         return "redirect:/admin/crl";
     }

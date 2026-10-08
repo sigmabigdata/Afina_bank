@@ -60,6 +60,7 @@ services:
       LOG_PATH: /var/log/afina/app.log
       FILE_ENCRYPTION_KEY_PATH: /opt/afina/secrets/file.key
       TZ: Europe/Moscow
+      JAVA_OPTS: "-Xms256m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
     volumes:
       - ./storage:/app/storage
       - ./logs:/var/log/afina

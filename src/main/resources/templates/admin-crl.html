@@ -51,20 +51,17 @@
                 · <span th:text="${totalCount}">0</span> файлов
             </div>
             <div style="display:flex; gap:10px;">
-                <form method="post" th:action="@{/admin/crl/refresh-all}" style="display:inline"
-                      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⏳ Обновление...';">
-                    <button type="submit" class="btn">🔄 Обновить всё сейчас</button>
-                </form>
                 <form method="post" th:action="@{/admin/crl/delete-all-auto}" style="display:inline"
-                      onsubmit="return confirm('Удалить все auto-*.crl? Они перекачаются автоматически при следующем обновлении.');">
+                      onsubmit="return confirm('Удалить все auto-*.crl? Они перекачаются автоматически в течение 6 часов.');">
                     <button type="submit" class="btn-danger">🗑 Удалить все auto-*.crl</button>
                 </form>
             </div>
         </div>
         <p class="muted small" style="margin:0;">
-            Кнопка «Обновить всё сейчас» запускает фоновую проверку — смотри лог app
-            (<code>afina logs app | grep CrlRefreshService</code>).
-            После обновления старые файлы с тем же issuer заменяются на новые.
+            CRL обновляются <b>автоматически каждые 6 часов</b> (фоновый сервис).
+            После каждого обновления старые файлы с тем же издателем заменяются.
+            Если нужно обновить прямо сейчас — <code>afina restart</code> (первая
+            проверка через 5 минут после старта).
         </p>
     </section>
 
