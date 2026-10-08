@@ -113,6 +113,73 @@ public class CrlService {
         log.info("CRL удалён: {}", fileName);
     }
 
+    /** Общий размер всех .crl в директории. */
+    public long getTotalSize() {
+        if (!Files.isDirectory(crlsDir)) return 0;
+        try (var stream = Files.list(crlsDir)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .mapToLong(f -> {
+                        try { return Files.size(f); } catch (Exception e) { return 0; }
+                    })
+                    .sum();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Количество .crl файлов. */
+    public long getCount() {
+        if (!Files.isDirectory(crlsDir)) return 0;
+        try (var stream = Files.list(crlsDir)) {
+            return stream.filter(Files::isRegularFile)
+                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .count();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Удалить несколько файлов по именам. */
+    public int deleteMany(List<String> names) {
+        int n = 0;
+        for (String name : names) {
+            try {
+                delete(name);
+                n++;
+            } catch (Exception e) {
+                log.warn("Не удалось удалить {}: {}", name, e.getMessage());
+            }
+        }
+        return n;
+    }
+
+    /** Удалить все auto-*.crl. Возвращает количество удалённых. */
+    public int deleteAllAuto() {
+        if (!Files.isDirectory(crlsDir)) return 0;
+        int count = 0;
+        try (var stream = Files.list(crlsDir)) {
+            var files = stream
+                    .filter(Files::isRegularFile)
+                    .filter(f -> f.getFileName().toString().startsWith("auto-"))
+                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .toList();
+            for (var f : files) {
+                try {
+                    Files.deleteIfExists(f);
+                    count++;
+                } catch (Exception e) {
+                    log.warn("Не удалось удалить {}: {}", f.getFileName(), e.getMessage());
+                }
+            }
+            log.info("Удалено auto-*.crl: {}", count);
+        } catch (Exception e) {
+            log.error("deleteAllAuto error", e);
+        }
+        return count;
+    }
+
     public Path getCrlsDir() { return crlsDir; }
 
     public static String prettySize(long bytes) {

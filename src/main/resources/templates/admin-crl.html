@@ -35,12 +35,38 @@
     <div th:if="${err}" class="alert err" th:text="${err}"></div>
 
     <div class="alert info">
-        <b>Автоматическая загрузка:</b> при подписании документа сервис
-        извлекает URL CRL (CDP) из сертификатов подписантов и качает их в
-        <code th:text="${crlsDir}">/app/crls</code>.
+        <b>Автоматическая загрузка:</b> фоновый сервис каждые 6 часов
+        обновляет CRL по CDP-URL из сертификатов подписантов.
+        Файлы кладутся в <code th:text="${crlsDir}">/app/crls</code>,
+        дедуплицируются по издателю (issuer).
         Файлы <code>auto-*.crl</code> — автоматические,
-        остальные — загружены вручную администратором.
+        остальные — загружены вручную.
     </div>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <b>Всего:</b>
+                <span th:text="${totalSizePretty}">0 KB</span>
+                · <span th:text="${totalCount}">0</span> файлов
+            </div>
+            <div style="display:flex; gap:10px;">
+                <form method="post" th:action="@{/admin/crl/refresh-all}" style="display:inline"
+                      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⏳ Обновление...';">
+                    <button type="submit" class="btn">🔄 Обновить всё сейчас</button>
+                </form>
+                <form method="post" th:action="@{/admin/crl/delete-all-auto}" style="display:inline"
+                      onsubmit="return confirm('Удалить все auto-*.crl? Они перекачаются автоматически при следующем обновлении.');">
+                    <button type="submit" class="btn-danger">🗑 Удалить все auto-*.crl</button>
+                </form>
+            </div>
+        </div>
+        <p class="muted small" style="margin:0;">
+            Кнопка «Обновить всё сейчас» запускает фоновую проверку — смотри лог app
+            (<code>afina logs app | grep CrlRefreshService</code>).
+            После обновления старые файлы с тем же issuer заменяются на новые.
+        </p>
+    </section>
 
     <section class="panel">
         <div class="panel-head">
@@ -61,9 +87,19 @@
     <section class="panel">
         <h2>Загруженные CRL</h2>
 
+        <form method="post" th:action="@{/admin/crl/delete-selected}"
+              onsubmit="return confirm('Удалить выбранные CRL?');"
+              style="margin-bottom:12px;">
+            <button type="submit" class="btn-danger btn-sm">🗑 Удалить выбранные</button>
+            <span class="muted small" style="margin-left:12px;">
+                Отметьте файлы ниже для массового удаления
+            </span>
+        </form>
+
         <table class="docs">
             <thead>
             <tr>
+                <th style="width:36px;"></th>
                 <th>Файл</th>
                 <th>Тип</th>
                 <th>Издатель</th>
@@ -76,6 +112,9 @@
             </thead>
             <tbody>
             <tr th:each="c : ${crls}">
+                <td>
+                    <input type="checkbox" name="names" th:value="${c.fileName}"/>
+                </td>
                 <td>
                     <code th:text="${c.fileName}">file.crl</code>
                 </td>
@@ -108,13 +147,14 @@
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(crls)}">
-                <td colspan="8" class="muted center">
+                <td colspan="9" class="muted center">
                     CRL пока нет. Загрузите вручную выше, или они появятся автоматически
                     при следующем подписании документа (если сертификат содержит CDP URL).
                 </td>
             </tr>
             </tbody>
         </table>
+        </form>
     </section>
 </main>
 </body>
