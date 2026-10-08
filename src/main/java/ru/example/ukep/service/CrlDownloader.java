@@ -138,6 +138,9 @@ public class CrlDownloader {
                 }
             }
 
+            // Удалить старые файлы с тем же issuer (например, названные по URL)
+            deleteOldFilesForIssuer(issuerKey);
+
             // Атомарно заменяем
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             log.info("CRL обновлён: {} ({} байт, issuer={})",
@@ -145,6 +148,48 @@ public class CrlDownloader {
             return true;
         } finally {
             Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
+     * Удаляет все файлы auto-*.crl, которые НЕ совпадают с текущим issuerKey.
+     * Вызывается перед сохранением нового файла, чтобы не копились старые
+     * имена (например, названные по hash(url) из предыдущих версий).
+     */
+    private void deleteOldFilesForIssuer(String currentIssuerKey) {
+        try (var stream = Files.list(crlDir)) {
+            var files = stream
+                    .filter(Files::isRegularFile)
+                    .filter(f -> f.getFileName().toString().startsWith("auto-"))
+                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .toList();
+            for (var f : files) {
+                String name = f.getFileName().toString();
+                if (name.equals("auto-" + currentIssuerKey + ".crl")) continue;
+                try {
+                    // Проверяем, тот ли это issuer
+                    X509CRL other = parseCrl(f);
+                    String otherKey = issuerKey(other);
+                    if (otherKey.equals(currentIssuerKey)) {
+                        Files.deleteIfExists(f);
+                        log.info("Удалён устаревший CRL: {}", name);
+                    }
+                } catch (Exception ignored) {
+                    // Файл не парсится — удалим, если он старый
+                    long ageMs = System.currentTimeMillis()
+                            - Files.getLastModifiedTime(f).toMillis();
+                    if (ageMs > 7 * 24 * 3_600_000L) {
+                        try {
+                            Files.deleteIfExists(f);
+                            log.warn("Удалён невалидный старый CRL: {}", name);
+                        } catch (Exception e) {
+                            log.warn("Не удалось удалить {}: {}", name, e.getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("deleteOldFilesForIssuer error: {}", e.getMessage());
         }
     }
 
