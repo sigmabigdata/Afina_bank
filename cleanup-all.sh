@@ -107,14 +107,23 @@ fi
 log "─── 4. Docker ───"
 if docker info >/dev/null 2>&1; then
     if [ "$DRY_RUN" = "0" ]; then
-        reclaimed=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1)
-        log "До очистки: $reclaimed"
+        before=$(docker system df --format '{{.Size}}' 2>/dev/null | head -1)
+        log "Docker до очистки: $before"
 
-        docker image prune -f >/dev/null 2>&1 || true
-        docker builder prune -f >/dev/null 2>&1 || true
+        # Build cache — самый прожорливый (может быть >10 GB)
+        cache_freed=$(docker builder prune -a -f 2>&1 | grep -oE "Total reclaimed space: .*" | cut -d' ' -f4-)
+        log "Build cache: освобождено $cache_freed"
+
+        # Dangling + неиспользуемые образы (кроме активных)
+        images_freed=$(docker image prune -a -f 2>&1 | grep -oE "Total reclaimed space: .*" | cut -d' ' -f4-)
+        log "Images: освобождено $images_freed"
+
+        # Stopped containers
+        docker container prune -f >/dev/null 2>&1 || true
 
         # ВАЖНО: не трогаем volumes — там БД и caddy
-        log "Docker: образы и build-кэш очищены (volumes НЕ тронуты)"
+        after=$(docker system df --format '{{.Size}}' 2>/dev/null | head -1)
+        log "Docker после очистки: $after (volumes НЕ тронуты)"
     else
         log "[dry-run] пропускаем docker prune"
     fi
