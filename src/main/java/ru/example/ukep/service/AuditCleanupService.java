@@ -39,6 +39,8 @@ public class AuditCleanupService {
         }
         try {
             long deleted = cleanup(days);
+            settings.set("audit.last_cleanup_at", Instant.now().toString(), "system");
+            settings.set("audit.last_cleanup_deleted", String.valueOf(deleted), "system");
             log.info("audit cleanup: удалено {} записей старше {} дней", deleted, days);
         } catch (Exception e) {
             log.error("audit cleanup failed", e);

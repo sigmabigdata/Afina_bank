@@ -45,14 +45,18 @@
                    min="0" max="3650" style="width:100px"/>
             <button type="submit" class="btn-ghost">Сохранить</button>
         </form>
-        <form method="post" th:action="@{/admin/audit/cleanup}"
-              onsubmit="return confirm('Удалить все события старше ' + ${retentionDays} + ' дней?');">
-            <button type="submit" class="btn-danger">🧹 Очистить сейчас</button>
-        </form>
+
     </div>
 </div>
 <p class="muted small" style="margin:-8px 0 16px;">
-    Автоочистка запускается ежедневно в 04:00.
+    Автоочистка запускается <b>ежедневно в 04:00</b> (МСК).
+    <span th:if="${nextCleanup != null}">
+        Следующая: <b th:text="${#temporals.format(nextCleanup,'dd.MM.yyyy HH:mm')}">—</b>.
+    </span>
+    <span th:if="${lastCleanupAt != null}">
+        Последняя: <span th:text="${#temporals.format(lastCleanupAt,'dd.MM.yyyy HH:mm')}">—</span>
+        (удалено <b th:text="${lastCleanupDeleted}">0</b> записей).
+    </span>
     CSV-экспорт можно сделать до очистки.
 </p>
 

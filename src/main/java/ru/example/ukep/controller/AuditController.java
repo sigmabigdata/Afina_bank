@@ -74,6 +74,23 @@ public class AuditController {
         model.addAttribute("limit", safeLimit);
         model.addAttribute("totalFound", filtered.size());
         model.addAttribute("retentionDays", settings.getIntOrDefault("audit.retention_days", 365));
+
+        // Автоочистка: cron 0 0 4 * * * (ежедневно в 04:00)
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now();
+        java.time.ZonedDateTime next = now.toLocalDate().atStartOfDay(now.getZone())
+                .plusHours(4);
+        if (!next.isAfter(now)) next = next.plusDays(1);
+        model.addAttribute("nextCleanup", next);
+
+        // Последняя очистка
+        String lastCleanupStr = settings.getOrDefault("audit.last_cleanup_at", "");
+        if (!lastCleanupStr.isBlank()) {
+            try {
+                model.addAttribute("lastCleanupAt", java.time.Instant.parse(lastCleanupStr));
+                model.addAttribute("lastCleanupDeleted",
+                        settings.getOrDefault("audit.last_cleanup_deleted", "0"));
+            } catch (Exception ignored) {}
+        }
         return "admin-audit";
     }
 
