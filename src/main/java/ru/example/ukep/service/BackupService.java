@@ -31,6 +31,13 @@ public class BackupService {
      */
     private static final String SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
+    private static ProcessBuilder safePb(String... command) {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.environment().clear();
+        pb.environment().put("PATH", SAFE_PATH);
+        return pb;
+    }
+
     @Value("${app.backups-path:/app/backups}")
     private String backupsPath;
 
@@ -92,7 +99,7 @@ public class BackupService {
 
         DbParams db = parseDbParams();
 
-        ProcessBuilder pb = new ProcessBuilder(
+        ProcessBuilder pb = safePb(
                 "pg_dump",
                 "-h", db.host,
                 "-p", String.valueOf(db.port),
@@ -101,7 +108,6 @@ public class BackupService {
                 "--clean", "--if-exists",
                 "--no-owner", "--no-privileges"
         );
-        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, dbPassword);
         Process proc = pb.start();
 
@@ -268,13 +274,12 @@ public class BackupService {
     private void terminateConnections() {
         try {
             DbParams db = parseDbParams();
-            ProcessBuilder pb = new ProcessBuilder(
+            ProcessBuilder pb = safePb(
                     "psql", "-h", db.host, "-p", String.valueOf(db.port),
                     "-U", dbUser, "-d", db.name, "-c",
                     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity " +
                     "WHERE datname = current_database() AND pid <> pg_backend_pid()"
             );
-        pb.environment().putIfAbsent("PATH", SAFE_PATH);
             pb.environment().put(ENV_PGPASSWORD, dbPassword);
             Process p = pb.start();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
@@ -334,24 +339,22 @@ public class BackupService {
 
     private void runPsqlCommandAsSuperuser(String sql) throws IOException, InterruptedException {
         DbParams db = parseDbParams();
-        ProcessBuilder pb = new ProcessBuilder(
+        ProcessBuilder pb = safePb(
                 "psql", "-h", db.host, "-p", String.valueOf(db.port),
                 "-U", superUser, "-d", db.name,
                 "-v", PSQL_ON_ERROR_STOP, "-c", sql
         );
-        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, superPassword);
         runPsqlProcess(pb, "psql -c (super)");
     }
 
     private void runPsqlFromFileAsSuperuser(Path file, boolean gz) throws IOException, InterruptedException {
         DbParams db = parseDbParams();
-        ProcessBuilder pb = new ProcessBuilder(
+        ProcessBuilder pb = safePb(
                 "psql", "-h", db.host, "-p", String.valueOf(db.port),
                 "-U", superUser, "-d", db.name,
                 "-v", PSQL_ON_ERROR_STOP
         );
-        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, superPassword);
         Process proc = pb.start();
 
