@@ -43,7 +43,8 @@ public class BackupService {
     @Value("${app.db-superuser-password:}")
     private String superPassword;
 
-    public record BackupFile(String name, long size, Instant createdAt, String sizePretty) {}
+    public record BackupFile(String name, long size, Instant createdAt,
+                             String sizePretty, boolean encrypted) {}
 
     public List<BackupFile> list() {
         Path root = Paths.get(backupsPath);
@@ -53,13 +54,17 @@ public class BackupService {
                     .filter(Files::isRegularFile)
                     .filter(p -> {
                         String n = p.getFileName().toString();
-                        return n.endsWith(".sql") || n.endsWith(".sql.gz");
+                        return n.endsWith(".sql")
+                                || n.endsWith(".sql.gz")
+                                || n.endsWith(".sql.gz.enc");
                     })
                     .map(p -> {
                         try {
                             long sz = Files.size(p);
                             Instant t = Files.getLastModifiedTime(p).toInstant();
-                            return new BackupFile(p.getFileName().toString(), sz, t, prettySize(sz));
+                            String n = p.getFileName().toString();
+                            boolean enc = n.endsWith(".enc");
+                            return new BackupFile(n, sz, t, prettySize(sz), enc);
                         } catch (IOException e) {
                             return null;
                         }
@@ -153,6 +158,14 @@ public class BackupService {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
             throw new IOException(MSG_FILE_NOT_FOUND + name);
+        }
+
+        // Зашифрованные бэкапы восстанавливаются ТОЛЬКО через CLI:
+        // пароль от backup.pass не должен ходить через веб-сессию админа.
+        if (name.endsWith(".enc")) {
+            throw new IOException(
+                    "Зашифрованный бэкап нельзя восстановить через UI. "
+                    + "На сервере: cd /opt/afina && ./restore-prod.sh backups/" + name);
         }
 
         log.warn("Restoring database from {}...", name);

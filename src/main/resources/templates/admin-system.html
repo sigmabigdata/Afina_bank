@@ -113,6 +113,14 @@
             </form>
         </div>
 
+        <div class="alert info" style="margin-bottom:10px;">
+            <b>🔒 Бэкапы зашифрованы AES-256</b> (с 09.10.2026).
+            Скачать и удалить можно из UI, <b>восстановление</b> — только через CLI:
+            <code>ssh afina-vps &amp;&amp; cd /opt/afina &amp;&amp; ./restore-prod.sh backups/afina_*.sql.gz.enc</code>
+            <br>
+            <span class="muted small">Пароль от бэкапа лежит в <code>secrets/backup.pass</code> и не покидает сервер.</span>
+        </div>
+
         <table class="docs">
             <thead>
             <tr>
@@ -124,15 +132,22 @@
             </thead>
             <tbody>
             <tr th:each="b : ${backups}">
-                <td th:text="${b.name}">—</td>
+                <td>
+                    <span th:if="${b.encrypted}" title="Зашифрован AES-256">🔒 </span>
+                    <span th:text="${b.name}">—</span>
+                </td>
                 <td th:text="${b.sizePretty}">—</td>
                 <td th:text="${#temporals.format(b.createdAt,'dd.MM.yy HH:mm')}">—</td>
                 <td>
                     <a th:href="@{'/admin/system/backups/' + ${b.name} + '/download'}"
                        class="btn-sig btn-sm" title="Скачать">⬇ Скачать</a>
 
-                    <button type="button" class="btn-ghost btn-sm btn-restore"
+                    <button th:unless="${b.encrypted}" type="button"
+                            class="btn-ghost btn-sm btn-restore"
                             th:attr="data-name=${b.name}" title="Восстановить">⟲ Восстановить</button>
+                    <button th:if="${b.encrypted}" type="button"
+                            class="btn-ghost btn-sm" disabled
+                            title="Зашифрованный бэкап восстанавливается через CLI: cd /opt/afina && ./restore-prod.sh backups/...">🔒 CLI</button>
 
                     <form method="post"
                           th:action="@{'/admin/system/backups/' + ${b.name} + '/delete'}"
