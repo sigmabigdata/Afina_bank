@@ -58,7 +58,7 @@
     <section class="panel">
         <div class="panel-head">
             <h2 style="margin:0">Файлы ключей</h2>
-            <a th:href="@{/admin/keys/download}" class="btn">⬇ Скачать бэкап (ZIP)</a>
+            <button type="button" id="btn-download-keys" class="btn">🔒 Скачать бэкап (ZIP + пароль)</button>
         </div>
 
         <table class="docs">
@@ -191,5 +191,108 @@
         </p>
     </section>
 </main>
+
+<!-- Модалка: пароль на ZIP с ключами -->
+<div id="modal-keys" class="modal" style="display:none">
+    <div class="modal-card">
+        <h2>🔒 Защита архива с ключами</h2>
+        <p>
+            Архив содержит <b>file.key</b> и <b>pii.key</b> — без них восстановить
+            данные невозможно. Задайте пароль не короче
+            <b th:text="${minPasswordLength}">12</b> символов.
+        </p>
+        <div class="alert err">
+            ⚠️ Пароль <b>не сохраняется</b> в приложении. Если забудете — распаковать
+            архив будет невозможно.<br>
+            ⚠️ Храните пароль <b>отдельно от архива</b> (менеджер паролей).
+        </div>
+
+        <form method="post" th:action="@{/admin/keys/download}" id="keys-form"
+              autocomplete="off">
+            <label style="display:block; margin-bottom:6px; font-size:13px; font-weight:500;">
+                Пароль
+            </label>
+            <input type="password" name="password" id="keys-password"
+                   required autocomplete="new-password"
+                   th:minlength="${minPasswordLength}"
+                   style="width:100%; padding:10px 12px; border:1px solid #cbd5e1;
+                          border-radius:8px; font-size:14px; margin-bottom:12px;"/>
+
+            <label style="display:block; margin-bottom:6px; font-size:13px; font-weight:500;">
+                Повторите пароль
+            </label>
+            <input type="password" name="confirmPassword" id="keys-confirm"
+                   required autocomplete="new-password"
+                   th:minlength="${minPasswordLength}"
+                   style="width:100%; padding:10px 12px; border:1px solid #cbd5e1;
+                          border-radius:8px; font-size:14px; margin-bottom:8px;"/>
+
+            <div id="keys-err" class="alert err" style="display:none; margin-top:8px;"></div>
+
+            <div class="modal-actions" style="margin-top:16px;">
+                <button type="button" class="btn-ghost" id="keys-cancel">Отмена</button>
+                <button type="submit" class="btn">⬇ Скачать</button>
+            </div>
+        </form>
+
+        <p class="muted small" style="margin-top:12px;">
+            Альтернатива через CLI: <code>afina key</code> — покажет информацию
+            о ключах, но не выгрузит их. Для выгрузки используйте эту форму.
+        </p>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('modal-keys');
+    var openBtn = document.getElementById('btn-download-keys');
+    var cancelBtn = document.getElementById('keys-cancel');
+    var form = document.getElementById('keys-form');
+    var pwd = document.getElementById('keys-password');
+    var confirm = document.getElementById('keys-confirm');
+    var errBox = document.getElementById('keys-err');
+    var MIN = parseInt(pwd.getAttribute('minlength') || '12', 10);
+
+    function showErr(text) {
+        errBox.textContent = text;
+        errBox.style.display = 'block';
+    }
+
+    function hideErr() { errBox.style.display = 'none'; }
+
+    openBtn.addEventListener('click', function () {
+        pwd.value = '';
+        confirm.value = '';
+        hideErr();
+        modal.style.display = 'flex';
+        setTimeout(function () { pwd.focus(); }, 30);
+    });
+
+    cancelBtn.addEventListener('click', function () {
+        modal.style.display = 'none';
+    });
+
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+
+    form.addEventListener('submit', function (e) {
+        hideErr();
+        if (pwd.value.length < MIN) {
+            e.preventDefault();
+            showErr('Пароль короче ' + MIN + ' символов');
+            return;
+        }
+        if (pwd.value !== confirm.value) {
+            e.preventDefault();
+            showErr('Пароли не совпадают');
+            return;
+        }
+        // Оставляем форму отправить POST — браузер скачает файл
+        setTimeout(function () { modal.style.display = 'none'; }, 500);
+    });
+})();
+</script>
+
 </body>
 </html>
