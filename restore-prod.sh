@@ -1,26 +1,50 @@
 #!/usr/bin/env bash
 # Восстановление БД Афина (prod).
-set -e
+# Поддерживает:
+#   *.sql.gz.enc  — зашифрованный дамп (текущий формат)
+#   *.sql.gz      — старый plaintext (миграционный период)
+set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ -z "$1" ] || [ ! -f "$1" ]; then
-    echo "Использование: $0 backups/afina_YYYYMMDD_HHMMSS.sql.gz"
+PASS_FILE="./secrets/backup.pass"
+
+if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+    echo "Использование: $0 backups/afina_YYYYMMDD_HHMMSS.sql.gz.enc"
     echo ""
     echo "Доступные бэкапы:"
-    ls -la backups/ 2>/dev/null || echo "  (нет)"
+    ls -lh backups/ 2>/dev/null || echo "  (нет)"
     exit 1
 fi
 
-echo "⚠️  Восстановление из $1. Все данные будут заменены."
-read -p "Введи yes для подтверждения: " ans
-[ "$ans" = "yes" ] || { echo "Отменено."; exit 1; }
+FILE="$1"
+
+echo "⚠️  Восстановление из: $FILE"
+echo "    Все данные в afina_db будут заменены."
+read -p "Введи 'RESTORE' для подтверждения: " ans
+[ "$ans" = "RESTORE" ] || { echo "Отменено."; exit 1; }
 
 echo "▶ Останавливаю app"
 docker compose -f docker-compose-prod.yml --env-file .env.prod stop app
 
-echo "▶ Восстанавливаю БД"
-gunzip -c "$1" | docker exec -i afina-postgres psql \
-    -U afina_migrator -d afina_db -q --single-transaction
+echo "▶ Расшифровываю и восстанавливаю БД"
+case "$FILE" in
+    *.sql.gz.enc)
+        [ -r "$PASS_FILE" ] || { echo "✗ Нет $PASS_FILE"; exit 1; }
+        openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+            -pass file:"$PASS_FILE" -in "$FILE" \
+            | gunzip \
+            | docker exec -i afina-postgres psql \
+                -U afina_migrator -d afina_db -q --single-transaction
+        ;;
+    *.sql.gz)
+        echo "  (plaintext-бэкап, устаревший формат)"
+        gunzip -c "$FILE" \
+            | docker exec -i afina-postgres psql \
+                -U afina_migrator -d afina_db -q --single-transaction
+        ;;
+    *)
+        echo "✗ Неизвестный формат: $FILE"; exit 1 ;;
+esac
 
 echo "▶ Восстанавливаю владельцев"
 docker exec -i afina-postgres psql -U postgres -d afina_db -q \
@@ -30,3 +54,4 @@ echo "▶ Запускаю app"
 docker compose -f docker-compose-prod.yml --env-file .env.prod start app
 
 echo "✅ Готово"
+echo "   Проверь:  afina health && afina logs app | tail -20"
