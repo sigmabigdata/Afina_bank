@@ -24,6 +24,12 @@ public class BackupService {
     private static final String ENV_PGPASSWORD = "PGPASSWORD";
     private static final String PSQL_ON_ERROR_STOP = "ON_ERROR_STOP=1";
     private static final String MSG_FILE_NOT_FOUND = "Файл не найден: ";
+    /**
+     * Ограниченный PATH для дочерних процессов (psql, pg_dump).
+     * Sonar java:S4036: гарантируем, что бинарь берётся из системного
+     * каталога, а не из унаследованного окружения.
+     */
+    private static final String SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
     @Value("${app.backups-path:/app/backups}")
     private String backupsPath;
@@ -95,6 +101,7 @@ public class BackupService {
                 "--clean", "--if-exists",
                 "--no-owner", "--no-privileges"
         );
+        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, dbPassword);
         Process proc = pb.start();
 
@@ -267,6 +274,7 @@ public class BackupService {
                     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity " +
                     "WHERE datname = current_database() AND pid <> pg_backend_pid()"
             );
+        pb.environment().putIfAbsent("PATH", SAFE_PATH);
             pb.environment().put(ENV_PGPASSWORD, dbPassword);
             Process p = pb.start();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
@@ -331,6 +339,7 @@ public class BackupService {
                 "-U", superUser, "-d", db.name,
                 "-v", PSQL_ON_ERROR_STOP, "-c", sql
         );
+        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, superPassword);
         runPsqlProcess(pb, "psql -c (super)");
     }
@@ -342,6 +351,7 @@ public class BackupService {
                 "-U", superUser, "-d", db.name,
                 "-v", PSQL_ON_ERROR_STOP
         );
+        pb.environment().putIfAbsent("PATH", SAFE_PATH);
         pb.environment().put(ENV_PGPASSWORD, superPassword);
         Process proc = pb.start();
 
