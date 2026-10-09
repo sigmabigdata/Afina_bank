@@ -35,19 +35,25 @@ public class AdminCredentialsFileService {
         try {
             for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
                 String s = line.trim();
-                if (s.isEmpty() || s.startsWith("#")) continue;
-                String[] parts = s.split("\\|", 2);
-                if (parts.length < 2) continue;
-                String cn = normalizeCn(parts[0]);
-                String snils = normalizeSnils(parts[1].trim());
-                if (!cn.isEmpty() && !snils.isEmpty()) {
-                    result.add(new AdminRecord(cn, snils));
+                if (!s.isEmpty() && !s.startsWith("#")) {
+                    AdminRecord rec = parseLine(s);
+                    if (rec != null) result.add(rec);
                 }
             }
         } catch (IOException e) {
             log.error("Не удалось прочитать файл админов: {}", adminsFilePath, e);
         }
         return result;
+    }
+
+    /** Разбирает строку «CN|SNILS». Возвращает null, если строка невалидна. */
+    private AdminRecord parseLine(String s) {
+        String[] parts = s.split("\\|", 2);
+        if (parts.length < 2) return null;
+        String cn = normalizeCn(parts[0]);
+        String snils = normalizeSnils(parts[1].trim());
+        if (cn.isEmpty() || snils.isEmpty()) return null;
+        return new AdminRecord(cn, snils);
     }
 
     /** Ищет администратора по CN и СНИЛС (с нормализацией Unicode и пробелов). */

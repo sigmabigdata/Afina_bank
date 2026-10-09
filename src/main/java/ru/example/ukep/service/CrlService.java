@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 @Service
@@ -48,37 +49,43 @@ public class CrlService {
         try (Stream<Path> stream = Files.list(crlsDir)) {
             stream.filter(Files::isRegularFile)
                   .filter(f -> f.getFileName().toString().endsWith(".crl"))
-                  .forEach(f -> {
-                      try (InputStream is = Files.newInputStream(f)) {
-                          CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                          X509CRL crl = (X509CRL) cf.generateCRL(is);
-                          long size = Files.size(f);
-
-                          Instant lastUpdate = crl.getThisUpdate() != null
-                                  ? crl.getThisUpdate().toInstant() : null;
-                          Instant nextUpdate = crl.getNextUpdate() != null
-                                  ? crl.getNextUpdate().toInstant() : null;
-                          long daysToExpiry = nextUpdate != null
-                                  ? (nextUpdate.toEpochMilli() - System.currentTimeMillis()) / 86_400_000L
-                                  : -1;
-
-                          String name = f.getFileName().toString();
-                          boolean manual = !name.startsWith("auto-");
-
-                          result.add(new CrlInfo(
-                                  name, size, prettySize(size),
-                                  crl.getIssuerX500Principal().getName(),
-                                  lastUpdate, nextUpdate, daysToExpiry, manual));
-                      } catch (Exception e) {
-                          log.warn("Не удалось разобрать {}: {}", f.getFileName(), e.getMessage());
-                      }
-                  });
+                  .map(this::readCrlInfo)
+                  .filter(Objects::nonNull)
+                  .forEach(result::add);
         } catch (Exception e) {
             log.error("listAll error", e);
         }
 
         result.sort(Comparator.comparing(CrlInfo::issuer).thenComparing(CrlInfo::fileName));
         return result;
+    }
+
+    /** Парсит один CRL-файл. Возвращает null, если файл повреждён. */
+    private CrlInfo readCrlInfo(Path f) {
+        try (InputStream is = Files.newInputStream(f)) {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509CRL crl = (X509CRL) cf.generateCRL(is);
+            long size = Files.size(f);
+
+            Instant lastUpdate = crl.getThisUpdate() != null
+                    ? crl.getThisUpdate().toInstant() : null;
+            Instant nextUpdate = crl.getNextUpdate() != null
+                    ? crl.getNextUpdate().toInstant() : null;
+            long daysToExpiry = nextUpdate != null
+                    ? (nextUpdate.toEpochMilli() - System.currentTimeMillis()) / 86_400_000L
+                    : -1;
+
+            String name = f.getFileName().toString();
+            boolean manual = !name.startsWith("auto-");
+
+            return new CrlInfo(
+                    name, size, prettySize(size),
+                    crl.getIssuerX500Principal().getName(),
+                    lastUpdate, nextUpdate, daysToExpiry, manual);
+        } catch (Exception e) {
+            log.warn("Не удалось разобрать {}: {}", f.getFileName(), e.getMessage());
+            return null;
+        }
     }
 
     /** Загрузить CRL вручную из байтов. */

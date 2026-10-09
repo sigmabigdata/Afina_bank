@@ -40,6 +40,26 @@ public class MigrateEncryption implements ApplicationRunner {
         this.storageRoot = Paths.get(storagePath).toAbsolutePath().normalize();
     }
 
+    /** Шифрует один документ: читает plaintext, пишет .enc, обновляет БД. */
+    private void migrateOne(Document doc) throws Exception {
+        Path p = storageRoot.resolve(doc.getStoredName());
+        byte[] plain = Files.readAllBytes(p);
+        FileEncryptor.Encrypted enc = encryptor.encrypt(plain);
+
+        Path encPath = storageRoot.resolve(doc.getStoredName() + ".enc");
+        Files.write(encPath, enc.bytes(),
+                StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+
+        doc.setStoredName(doc.getStoredName() + ".enc");
+        doc.setEncryptionIv(enc.ivBase64());
+        doc.setKeyVersion("v1");
+        doc.setEncrypted(true);
+        repo.save(doc);
+
+        Files.delete(p);
+        log.info("Зашифрован документ id={} ({} байт)", doc.getId(), plain.length);
+    }
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         List<Document> all = repo.findAll();
@@ -48,33 +68,20 @@ public class MigrateEncryption implements ApplicationRunner {
         int failed = 0;
 
         for (Document doc : all) {
-            if (doc.isEncrypted()) { skipped++; continue; }
-            try {
-                Path p = storageRoot.resolve(doc.getStoredName());
-                if (!Files.isRegularFile(p)) {
-                    log.warn("Файл отсутствует: {} (doc id={})", p, doc.getId());
-                    failed++;
-                    continue;
-                }
-                byte[] plain = Files.readAllBytes(p);
-                FileEncryptor.Encrypted enc = encryptor.encrypt(plain);
-
-                Path encPath = storageRoot.resolve(doc.getStoredName() + ".enc");
-                Files.write(encPath, enc.bytes(),
-                        StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-
-                doc.setStoredName(doc.getStoredName() + ".enc");
-                doc.setEncryptionIv(enc.ivBase64());
-                doc.setKeyVersion("v1");
-                doc.setEncrypted(true);
-                repo.save(doc);
-
-                Files.delete(p);
-                migrated++;
-                log.info("Зашифрован документ id={} ({} байт)", doc.getId(), plain.length);
-            } catch (Exception e) {
-                log.error("Ошибка миграции документа id={}", doc.getId(), e);
+            if (doc.isEncrypted()) {
+                skipped++;
+            } else if (!Files.isRegularFile(storageRoot.resolve(doc.getStoredName()))) {
+                log.warn("Файл отсутствует: {} (doc id={})",
+                        storageRoot.resolve(doc.getStoredName()), doc.getId());
                 failed++;
+            } else {
+                try {
+                    migrateOne(doc);
+                    migrated++;
+                } catch (Exception e) {
+                    log.error("Ошибка миграции документа id={}", doc.getId(), e);
+                    failed++;
+                }
             }
         }
 
