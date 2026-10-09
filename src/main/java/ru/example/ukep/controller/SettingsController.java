@@ -20,6 +20,13 @@ import ru.example.ukep.service.SettingsService;
 public class SettingsController {
 
     private static final Logger log = LoggerFactory.getLogger(SettingsController.class);
+    private static final String K_SMTP_HOST = "smtp.host";
+    private static final String K_SMTP_PORT = "smtp.port";
+    private static final String K_SMTP_USER = "smtp.username";
+    private static final String K_SMTP_PASS = "smtp.password";
+    private static final String K_SMTP_SSL  = "smtp.ssl";
+    private static final String UNKNOWN = "unknown";
+    private static final String REDIR = "redirect:/admin/settings";
 
     private final SettingsService settings;
     private final AuditService audit;
@@ -50,12 +57,12 @@ public class SettingsController {
     public String page(Model model) {
         model.addAttribute("settings", settings.getAll());
         // SMTP-значения для формы (пароль маскируем)
-        model.addAttribute("smtpHost", settings.getOrDefault("smtp.host", ""));
-        model.addAttribute("smtpPort", settings.getOrDefault("smtp.port", "465"));
-        model.addAttribute("smtpUsername", settings.getOrDefault("smtp.username", ""));
+        model.addAttribute("smtpHost", settings.getOrDefault(K_SMTP_HOST, ""));
+        model.addAttribute("smtpPort", settings.getOrDefault(K_SMTP_PORT, "465"));
+        model.addAttribute("smtpUsername", settings.getOrDefault(K_SMTP_USER, ""));
         // smtp.from убран из UI — From задаётся только через .env.prod
-        model.addAttribute("smtpSsl", settings.getBoolOrDefault("smtp.ssl", true));
-        boolean hasPassword = !settings.getOrDefault("smtp.password", "").isBlank();
+        model.addAttribute("smtpSsl", settings.getBoolOrDefault(K_SMTP_SSL, true));
+        boolean hasPassword = !settings.getOrDefault(K_SMTP_PASS, "").isBlank();
         model.addAttribute("smtpHasPassword", hasPassword);
 
         // Reference — текущие значения из .env.prod
@@ -80,7 +87,7 @@ public class SettingsController {
                        @RequestParam(required = false) String smtpSsl,
                        Authentication auth,
                        RedirectAttributes ra) {
-        String who = auth != null ? auth.getName() : "unknown";
+        String who = auth != null ? auth.getName() : UNKNOWN;
         try {
             // Основные
             settings.set("monitor.mail_to", monitorMailTo == null ? "" : monitorMailTo.trim(), who);
@@ -92,10 +99,10 @@ public class SettingsController {
             settings.set("signature.require_crl", requireCrl != null ? "true" : "false", who);
 
             // SMTP
-            settings.set("smtp.host", smtpHost == null ? "" : smtpHost.trim(), who);
-            settings.set("smtp.port", smtpPort == null ? "465" : smtpPort.trim(), who);
-            settings.set("smtp.username", smtpUsername == null ? "" : smtpUsername.trim(), who);
-            settings.set("smtp.ssl", smtpSsl != null ? "true" : "false", who);
+            settings.set(K_SMTP_HOST, smtpHost == null ? "" : smtpHost.trim(), who);
+            settings.set(K_SMTP_PORT, smtpPort == null ? "465" : smtpPort.trim(), who);
+            settings.set(K_SMTP_USER, smtpUsername == null ? "" : smtpUsername.trim(), who);
+            settings.set(K_SMTP_SSL, smtpSsl != null ? "true" : "false", who);
 
             // Пароль — только если введён новый (не пустая строка)
             if (smtpPassword != null && !smtpPassword.isBlank()) {
@@ -109,34 +116,34 @@ public class SettingsController {
             log.error("Ошибка сохранения настроек", e);
             ra.addFlashAttribute("err", "Ошибка: " + e.getMessage());
         }
-        return "redirect:/admin/settings";
+        return REDIR;
     }
 
     @PostMapping("/smtp/reset-to-env")
     public String smtpResetToEnv(Authentication auth, RedirectAttributes ra) {
-        String who = auth != null ? auth.getName() : "unknown";
+        String who = auth != null ? auth.getName() : UNKNOWN;
         try {
-            settings.set("smtp.host", "", who);
-            settings.set("smtp.port", "465", who);
-            settings.set("smtp.username", "", who);
-            settings.set("smtp.password", "", who);
-            settings.set("smtp.ssl", "true", who);
+            settings.set(K_SMTP_HOST, "", who);
+            settings.set(K_SMTP_PORT, "465", who);
+            settings.set(K_SMTP_USER, "", who);
+            settings.set(K_SMTP_PASS, "", who);
+            settings.set(K_SMTP_SSL, "true", who);
             audit.settingsUpdate(who, "smtp-reset-to-env");
             ra.addFlashAttribute("ok", "SMTP-настройки сброшены к .env.prod");
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Ошибка: " + e.getMessage());
         }
-        return "redirect:/admin/settings";
+        return REDIR;
     }
 
     @PostMapping("/test-email")
     public String testEmail(@RequestParam String to,
                             Authentication auth,
                             RedirectAttributes ra) {
-        String who = auth != null ? auth.getName() : "unknown";
+        String who = auth != null ? auth.getName() : UNKNOWN;
         if (to == null || to.isBlank() || !to.contains("@")) {
             ra.addFlashAttribute("err", "Укажите корректный email");
-            return "redirect:/admin/settings";
+            return REDIR;
         }
         try {
             emailService.sendTest(to.trim());
@@ -146,6 +153,6 @@ public class SettingsController {
             log.error("Test email failed", e);
             ra.addFlashAttribute("err", "Ошибка отправки: " + e.getMessage());
         }
-        return "redirect:/admin/settings";
+        return REDIR;
     }
 }

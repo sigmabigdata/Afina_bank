@@ -1,7 +1,5 @@
 package ru.example.ukep.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,8 +21,6 @@ import java.util.List;
  */
 @Service
 public class KeysService {
-
-    private static final Logger log = LoggerFactory.getLogger(KeysService.class);
 
     private final Path fileKeyPath;
     private final Path piiKeyPath;

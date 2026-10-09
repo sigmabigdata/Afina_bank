@@ -34,6 +34,12 @@ import java.util.zip.ZipOutputStream;
 @RequestMapping("/admin")
 public class AdminController {
 
+    private static final String UNKNOWN = "unknown";
+    private static final String USER_NOT_FOUND = "Пользователь не найден";
+    private static final String DOC_NOT_FOUND = "Документ не найден";
+    private static final String REDIR_USERS = "redirect:/admin/users/";
+    private static final String CONTENT_DISP = "attachment; filename*=UTF-8''";
+
     private final UserRepository userRepository;
     private final PiiEncryptor pii;
     private final DocumentRepository documentRepository;
@@ -112,7 +118,7 @@ public class AdminController {
                            java.security.Principal principal,
                            Model model) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         User admin = userRepository.findByEmailHash(pii.hash(principal.getName()))
                 .orElse(null);
         model.addAttribute("user", user);
@@ -127,14 +133,14 @@ public class AdminController {
     @PostMapping("/users/{id}/send-login-link")
     public String sendLoginLink(@PathVariable Long id, RedirectAttributes ra) {
         User u = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         if (u.getRole() == Role.ROLE_ADMIN) {
             ra.addFlashAttribute("err", "Администратор входит по сертификату");
-            return "redirect:/admin/users/" + id;
+            return REDIR_USERS + id;
         }
         if (!u.isEnabled()) {
             ra.addFlashAttribute("err", "Клиент заблокирован");
-            return "redirect:/admin/users/" + id;
+            return REDIR_USERS + id;
         }
         String link = userService.generateLoginLink(u.getEmail(), baseUrl);
         if (link == null) {
@@ -143,7 +149,7 @@ public class AdminController {
             emailService.sendLoginLink(u.getEmail(), link);
             ra.addFlashAttribute("ok", "Ссылка отправлена на " + u.getEmail());
         }
-        return "redirect:/admin/users/" + id;
+        return REDIR_USERS + id;
     }
 
     // ==================== CRUD ====================
@@ -162,10 +168,10 @@ public class AdminController {
                              RedirectAttributes ra) {
         try {
             User u = userService.adminCreate(email, fullName, phone, Role.ROLE_USER, enabled);
-            String who = auth != null ? auth.getName() : "unknown";
+            String who = auth != null ? auth.getName() : UNKNOWN;
             audit.userCreate(who, u.getId(), u.getEmail());
             ra.addFlashAttribute("ok", "Клиент создан: " + u.getEmail());
-            return "redirect:/admin/users/" + u.getId();
+            return REDIR_USERS + u.getId();
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("err", e.getMessage());
             return "redirect:/admin/users/new";
@@ -175,7 +181,7 @@ public class AdminController {
     @GetMapping("/users/{id}/edit")
     public String editUserForm(@PathVariable Long id, Model model) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         model.addAttribute("mode", "edit");
         model.addAttribute("user", user);
         return "admin-user-edit";
@@ -191,13 +197,13 @@ public class AdminController {
                              RedirectAttributes ra) {
         try {
             userService.adminUpdate(id, email, fullName, phone, Role.ROLE_USER, enabled);
-            String who = auth != null ? auth.getName() : "unknown";
+            String who = auth != null ? auth.getName() : UNKNOWN;
             audit.userUpdate(who, id, email);
             ra.addFlashAttribute("ok", "Сохранено");
-            return "redirect:/admin/users/" + id;
+            return REDIR_USERS + id;
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("err", e.getMessage());
-            return "redirect:/admin/users/" + id + "/edit";
+            return REDIR_USERS + id + "/edit";
         }
     }
 
@@ -212,7 +218,7 @@ public class AdminController {
             return "redirect:/admin/users";
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("err", e.getMessage());
-            return "redirect:/admin/users/" + id;
+            return REDIR_USERS + id;
         }
     }
 
@@ -226,7 +232,7 @@ public class AdminController {
             ra.addFlashAttribute("err", e.getMessage());
         }
         return "card".equals(back)
-                ? "redirect:/admin/users/" + id
+                ? REDIR_USERS + id
                 : "redirect:/admin/users";
     }
 
@@ -234,7 +240,7 @@ public class AdminController {
     @GetMapping("/documents/{id}/view")
     public ResponseEntity<Resource> viewDocument(@PathVariable Long id) throws IOException {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         Resource r = documentService.loadAsResource(doc);
         MediaType mt = doc.getContentType() != null
                 ? MediaType.parseMediaType(doc.getContentType())
@@ -249,11 +255,11 @@ public class AdminController {
     @GetMapping("/documents/{id}/download")
     public ResponseEntity<Resource> downloadDocument(@PathVariable Long id) throws IOException {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         Resource r = documentService.loadAsResource(doc);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(doc.getOriginalName(), StandardCharsets.UTF_8))
                 .body(r);
     }
@@ -261,7 +267,7 @@ public class AdminController {
     @GetMapping("/documents/{id}/signature/download")
     public ResponseEntity<byte[]> downloadSignature(@PathVariable Long id) {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         if (!doc.isSigned() || doc.getSignatureBase64() == null) return ResponseEntity.notFound().build();
         byte[] sig = Base64.getDecoder().decode(doc.getSignatureBase64().replaceAll("\\s+", ""));
         String n = doc.getOriginalName();
@@ -269,7 +275,7 @@ public class AdminController {
         if (dot > 0) n = n.substring(0, dot);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(n + ".sig", StandardCharsets.UTF_8))
                 .body(sig);
     }
@@ -277,7 +283,7 @@ public class AdminController {
     @GetMapping("/users/{id}/signatures.zip")
     public ResponseEntity<byte[]> downloadAllSignatures(@PathVariable Long id) throws IOException {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
 
         List<Document> docs = documentRepository.findAllByOwnerOrderByUploadedAtDesc(user);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -307,7 +313,7 @@ public class AdminController {
         String zn = "signatures_user_" + user.getId() + ".zip";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(zn, StandardCharsets.UTF_8))
                 .body(baos.toByteArray());
     }
@@ -341,16 +347,16 @@ public class AdminController {
                                 java.security.Principal principal,
                                 RedirectAttributes ra) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         try {
             Document doc = documentService.upload(file, user);
-            audit.documentUpload(principal != null ? principal.getName() : "unknown",
+            audit.documentUpload(principal != null ? principal.getName() : UNKNOWN,
                     doc.getId(), doc.getOriginalName());
             ra.addFlashAttribute("ok", "Документ загружен: " + doc.getOriginalName());
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось загрузить: " + e.getMessage());
         }
-        return "redirect:/admin/users/" + userId;
+        return REDIR_USERS + userId;
     }
 
     /** Удалить документ клиента. */
@@ -359,19 +365,19 @@ public class AdminController {
                                  java.security.Principal auth,
                                  RedirectAttributes ra) {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         Long ownerId = doc.getOwner().getId();
         try {
             String name = doc.getOriginalName();
             boolean wasSigned = doc.isSigned();
             documentService.deleteAsAdmin(id);
-            audit.documentDelete(auth != null ? auth.getName() : "unknown",
+            audit.documentDelete(auth != null ? auth.getName() : UNKNOWN,
                     id, name, wasSigned);
             ra.addFlashAttribute("ok", "Документ удалён");
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());
         }
-        return "redirect:/admin/users/" + ownerId;
+        return REDIR_USERS + ownerId;
     }
 
     /** Скачать конкретную подпись (админ). */
@@ -379,7 +385,7 @@ public class AdminController {
     public ResponseEntity<byte[]> downloadSignature(@PathVariable Long id,
                                                     @PathVariable Long sigId) {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         DocumentSignature sig = documentService.getSignature(sigId);
         if (!sig.getDocument().getId().equals(doc.getId())) {
             return ResponseEntity.notFound().build();
@@ -389,7 +395,7 @@ public class AdminController {
         String fileName = base + "_sig_" + sig.getId() + ".sig";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(fileName, StandardCharsets.UTF_8))
                 .body(bytes);
     }
@@ -400,11 +406,11 @@ public class AdminController {
                                   @PathVariable Long sigId,
                                   RedirectAttributes ra) {
         Document doc = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
         DocumentSignature sig = documentService.getSignature(sigId);
         if (!sig.getDocument().getId().equals(doc.getId())) {
             ra.addFlashAttribute("err", "Подпись не относится к документу");
-            return "redirect:/admin/users/" + doc.getOwner().getId();
+            return REDIR_USERS + doc.getOwner().getId();
         }
         Long ownerId = doc.getOwner().getId();
         try {
@@ -413,6 +419,6 @@ public class AdminController {
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Не удалось удалить: " + e.getMessage());
         }
-        return "redirect:/admin/users/" + ownerId;
+        return REDIR_USERS + ownerId;
     }
 }

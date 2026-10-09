@@ -22,6 +22,9 @@ import java.util.zip.GZIPOutputStream;
 public class BackupService {
 
     private static final Logger log = LoggerFactory.getLogger(BackupService.class);
+    private static final String ENV_PGPASSWORD = "PGPASSWORD";
+    private static final String PSQL_ON_ERROR_STOP = "ON_ERROR_STOP=1";
+    private static final String MSG_FILE_NOT_FOUND = "Файл не найден: ";
 
     @Value("${app.backups-path:/app/backups}")
     private String backupsPath;
@@ -88,7 +91,7 @@ public class BackupService {
                 "--clean", "--if-exists",
                 "--no-owner", "--no-privileges"
         );
-        pb.environment().put("PGPASSWORD", dbPassword);
+        pb.environment().put(ENV_PGPASSWORD, dbPassword);
         Process proc = pb.start();
 
         final StringBuilder stderrBuf = new StringBuilder();
@@ -127,7 +130,7 @@ public class BackupService {
     public void delete(String name) throws IOException {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
-            throw new IOException("Файл не найден: " + name);
+            throw new IOException(MSG_FILE_NOT_FOUND + name);
         }
         Files.delete(file);
         log.info("Backup deleted: {}", name);
@@ -136,7 +139,7 @@ public class BackupService {
     public byte[] read(String name) throws IOException {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
-            throw new IOException("Файл не найден: " + name);
+            throw new IOException(MSG_FILE_NOT_FOUND + name);
         }
         return Files.readAllBytes(file);
     }
@@ -144,7 +147,7 @@ public class BackupService {
     public String restore(String name) throws IOException, InterruptedException {
         Path file = safePath(name);
         if (!Files.isRegularFile(file)) {
-            throw new IOException("Файл не найден: " + name);
+            throw new IOException(MSG_FILE_NOT_FOUND + name);
         }
 
         log.warn("Restoring database from {}...", name);
@@ -190,57 +193,7 @@ public class BackupService {
         return safety;
     }
 
-    private void runPsqlCommand(String sql) throws IOException, InterruptedException {
-        DbParams db = parseDbParams();
-        ProcessBuilder pb = new ProcessBuilder(
-                "psql", "-h", db.host, "-p", String.valueOf(db.port),
-                "-U", dbUser, "-d", db.name,
-                "-v", "ON_ERROR_STOP=1", "-c", sql
-        );
-        pb.environment().put("PGPASSWORD", dbPassword);
-        runPsqlProcess(pb, "psql -c");
-    }
-
-    private void runPsqlFromFile(Path file, boolean gz) throws IOException, InterruptedException {
-        DbParams db = parseDbParams();
-        ProcessBuilder pb = new ProcessBuilder(
-                "psql", "-h", db.host, "-p", String.valueOf(db.port),
-                "-U", dbUser, "-d", db.name,
-                "-v", "ON_ERROR_STOP=1", "--single-transaction"
-        );
-        pb.environment().put("PGPASSWORD", dbPassword);
-        Process proc = pb.start();
-
-        final StringBuilder stderrBuf = new StringBuilder();
-        Thread errThread = new Thread(() -> {
-            try (BufferedReader br = new BufferedReader(
-                    new InputStreamReader(proc.getErrorStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) stderrBuf.append(line).append("\n");
-            } catch (IOException ignored) {}
-        }, "psql-stderr");
-        errThread.setDaemon(true);
-        errThread.start();
-
-        try (OutputStream stdin = proc.getOutputStream();
-             InputStream fileIn = Files.newInputStream(file);
-             InputStream in = gz ? new GZIPInputStream(fileIn) : fileIn) {
-            in.transferTo(stdin);
-            stdin.flush();
-        }
-
-        int rc = proc.waitFor();
-        errThread.join(2000);
-        if (rc != 0) {
-            String err = stderrBuf.toString().trim();
-            log.error("psql restore stderr:\n{}", err);
-            throw new IOException("psql exit " + rc +
-                    (err.isEmpty() ? "" : ":\n" + err));
-        }
-        log.info("psql restore completed successfully");
-    }
-
-    private void runPsqlProcess(ProcessBuilder pb, String tag)
+            private void runPsqlProcess(ProcessBuilder pb, String tag)
             throws IOException, InterruptedException {
         Process proc = pb.start();
 
@@ -292,13 +245,16 @@ public class BackupService {
                     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity " +
                     "WHERE datname = current_database() AND pid <> pg_backend_pid()"
             );
-            pb.environment().put("PGPASSWORD", dbPassword);
+            pb.environment().put(ENV_PGPASSWORD, dbPassword);
             Process p = pb.start();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 while (br.readLine() != null) { /* skip */ }
             }
             p.waitFor(5, TimeUnit.SECONDS);
             log.info("Terminated active connections to {}", db.name);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.warn("terminateConnections прерван");
         } catch (Exception e) {
             log.warn("Не удалось убить коннекты: {}", e.getMessage());
         }
@@ -348,9 +304,9 @@ public class BackupService {
         ProcessBuilder pb = new ProcessBuilder(
                 "psql", "-h", db.host, "-p", String.valueOf(db.port),
                 "-U", superUser, "-d", db.name,
-                "-v", "ON_ERROR_STOP=1", "-c", sql
+                "-v", PSQL_ON_ERROR_STOP, "-c", sql
         );
-        pb.environment().put("PGPASSWORD", superPassword);
+        pb.environment().put(ENV_PGPASSWORD, superPassword);
         runPsqlProcess(pb, "psql -c (super)");
     }
 
@@ -359,9 +315,9 @@ public class BackupService {
         ProcessBuilder pb = new ProcessBuilder(
                 "psql", "-h", db.host, "-p", String.valueOf(db.port),
                 "-U", superUser, "-d", db.name,
-                "-v", "ON_ERROR_STOP=1"
+                "-v", PSQL_ON_ERROR_STOP
         );
-        pb.environment().put("PGPASSWORD", superPassword);
+        pb.environment().put(ENV_PGPASSWORD, superPassword);
         Process proc = pb.start();
 
         final StringBuilder stderrBuf = new StringBuilder();

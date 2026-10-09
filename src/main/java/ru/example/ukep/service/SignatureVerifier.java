@@ -53,7 +53,6 @@ public class SignatureVerifier {
         }
     }
 
-    private final ThreadLocal<String> lastCn = new ThreadLocal<>();
     private final Path certsDir;
     private final Path crlsDir;
 
@@ -98,7 +97,7 @@ public class SignatureVerifier {
             // 1) Криптопроверка подписи (BC, fallback JCSP для ГОСТ)
             boolean valid = verifySignerCrypto(signer, leaf);
             if (!valid) {
-                throw new RuntimeException("Подпись недействительна");
+                throw new IllegalStateException("Подпись недействительна");
             }
 
             // 2) Срок действия листа
@@ -112,7 +111,7 @@ public class SignatureVerifier {
             // 4) Проверка корня в truststore
             X509Certificate root = chain.get(chain.size() - 1);
             if (!isTrustedRoot(root, truststore)) {
-                throw new RuntimeException(
+                throw new IllegalStateException(
                         "Корневой сертификат не в truststore: " + root.getSubjectX500Principal());
             }
 
@@ -143,12 +142,7 @@ public class SignatureVerifier {
         result.put("signersInfo", String.join("\n", infos));
         result.put("signerSubject", firstCn);
         result.put("signerSerial", firstSerial);
-        lastCn.set(firstCn);
         return result;
-    }
-
-    public String extractCnFromLastSignature() {
-        return lastCn.get();
     }
 
     // ==================== Внутренние методы ====================
@@ -166,28 +160,16 @@ public class SignatureVerifier {
             return signer.verify(new JcaSimpleSignerInfoVerifierBuilder()
                     .setProvider("JCSP").build(leaf));
         } catch (Exception jcspError) {
-            throw new RuntimeException("Ошибка проверки подписи: " + jcspError.getMessage(), jcspError);
+            throw new IllegalStateException("Ошибка проверки подписи: " + jcspError.getMessage(), jcspError);
         }
     }
 
     /** Извлекает все встроенные сертификаты из CMS (лист + промежуточные). */
-    private Set<X509Certificate> extractAllCerts(CMSSignedData cms) {
-        Set<X509Certificate> result = new HashSet<>();
-        Store<X509CertificateHolder> store = cms.getCertificates();
-        for (X509CertificateHolder holder : store.getMatches(null)) {
-            try {
-                result.add(new JcaX509CertificateConverter().setProvider("BC")
-                        .getCertificate(holder));
-            } catch (Exception ignored) {}
-        }
-        return result;
-    }
-
-    private X509Certificate getSignerCert(SignerInformation signer, CMSSignedData cms) throws Exception {
+        private X509Certificate getSignerCert(SignerInformation signer, CMSSignedData cms) throws Exception {
         Store<X509CertificateHolder> certStore = cms.getCertificates();
         Collection<X509CertificateHolder> matches = certStore.getMatches(signer.getSID());
         if (matches.isEmpty()) {
-            throw new RuntimeException("Сертификат подписанта не найден в подписи");
+            throw new IllegalStateException("Сертификат подписанта не найден в подписи");
         }
         return new JcaX509CertificateConverter().setProvider("BC")
                 .getCertificate(matches.iterator().next());
@@ -287,14 +269,14 @@ public class SignatureVerifier {
                 }
             }
             if (issuer == null) {
-                throw new RuntimeException(
+                throw new IllegalStateException(
                         "Не найден issuer для " + current.getSubjectX500Principal());
             }
             chain.add(issuer);
             current = issuer;
         }
         if (maxDepth <= 0) {
-            throw new RuntimeException("Цепочка слишком длинная (>10)");
+            throw new IllegalStateException("Цепочка слишком длинная (>10)");
         }
         return chain;
     }
@@ -304,7 +286,7 @@ public class SignatureVerifier {
             X509Certificate cert = chain.get(i);
             X509Certificate issuer = chain.get(i + 1);
             if (!verifySignature(cert, issuer)) {
-                throw new RuntimeException(
+                throw new IllegalStateException(
                         "Подпись звена невалидна: " + cert.getSubjectX500Principal()
                         + " ← " + issuer.getSubjectX500Principal());
             }
@@ -361,7 +343,7 @@ public class SignatureVerifier {
             }
             X509CRLEntry entry = matchingCrl.getRevokedCertificate(cert.getSerialNumber());
             if (entry != null) {
-                throw new RuntimeException(
+                throw new IllegalStateException(
                         "Сертификат отозван: " + cert.getSubjectX500Principal()
                         + ", serial=" + cert.getSerialNumber().toString(16)
                         + ", reason=" + entry.getRevocationReason());

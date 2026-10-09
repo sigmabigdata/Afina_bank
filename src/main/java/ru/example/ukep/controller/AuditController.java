@@ -2,7 +2,6 @@ package ru.example.ukep.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +31,8 @@ public class AuditController {
 
     // Максимум загружаем в память для фильтрации
     private static final int MAX_LOAD = 10_000;
+    private static final String K_RETENTION = "audit.retention_days";
+    private static final String REDIR_AUDIT = "redirect:/admin/audit";
 
     private final AuditEventRepository repo;
     private final AuditCleanupService cleanupService;
@@ -73,7 +74,7 @@ public class AuditController {
         model.addAttribute("to", to);
         model.addAttribute("limit", safeLimit);
         model.addAttribute("totalFound", filtered.size());
-        model.addAttribute("retentionDays", settings.getIntOrDefault("audit.retention_days", 365));
+        model.addAttribute("retentionDays", settings.getIntOrDefault(K_RETENTION, 365));
 
         // Автоочистка: cron 0 0 4 * * * (ежедневно в 04:00)
         java.time.ZonedDateTime now = java.time.ZonedDateTime.now();
@@ -162,10 +163,10 @@ public class AuditController {
 
     @org.springframework.web.bind.annotation.PostMapping("/cleanup")
     public String cleanupNow(org.springframework.web.servlet.mvc.support.RedirectAttributes ra) {
-        int days = settings.getIntOrDefault("audit.retention_days", 365);
+        int days = settings.getIntOrDefault(K_RETENTION, 365);
         if (days <= 0) {
             ra.addFlashAttribute("err", "Retention = 0, очистка отключена");
-            return "redirect:/admin/audit";
+            return REDIR_AUDIT;
         }
         try {
             long deleted = cleanupService.cleanup(days);
@@ -173,7 +174,7 @@ public class AuditController {
         } catch (Exception e) {
             ra.addFlashAttribute("err", "Ошибка очистки: " + e.getMessage());
         }
-        return "redirect:/admin/audit";
+        return REDIR_AUDIT;
     }
 
     @org.springframework.web.bind.annotation.PostMapping("/retention")
@@ -182,12 +183,12 @@ public class AuditController {
                                org.springframework.web.servlet.mvc.support.RedirectAttributes ra) {
         if (days < 0 || days > 3650) {
             ra.addFlashAttribute("err", "Допустимо 0..3650 дней");
-            return "redirect:/admin/audit";
+            return REDIR_AUDIT;
         }
-        settings.set("audit.retention_days", String.valueOf(days),
+        settings.set(K_RETENTION, String.valueOf(days),
                 auth != null ? auth.getName() : "admin");
         ra.addFlashAttribute("ok", "Retention: " + days + " дней");
-        return "redirect:/admin/audit";
+        return REDIR_AUDIT;
     }
 
     /** Парсит дату из query param (ISO format: yyyy-MM-dd). */

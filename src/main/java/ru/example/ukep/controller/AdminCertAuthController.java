@@ -22,7 +22,6 @@ import ru.example.ukep.service.SignatureVerifier;
 import ru.example.ukep.service.UserService;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -102,11 +101,13 @@ public class AdminCertAuthController {
 
             // 3. Криптографическая проверка подписи челленджа
             byte[] challengeBytes = req.getChallenge().getBytes(StandardCharsets.UTF_8);
-            signatureVerifier.verifyDetached(challengeBytes, req.getSignatureBase64());
+            Map<String, Object> result =
+                    signatureVerifier.verifyDetached(challengeBytes, req.getSignatureBase64());
 
             // 4. Сверяем CN в подписи с CN из admins.env
-            String signerCn = signatureVerifier.extractCnFromLastSignature();
-            if (signerCn == null || !signerCn.equalsIgnoreCase(admin.get().cn())) {
+            String signerCn = String.valueOf(
+                    result.getOrDefault("signerSubject", "")).trim();
+            if (signerCn.isEmpty() || !signerCn.equalsIgnoreCase(admin.get().cn())) {
                 log.warn("CN mismatch: signer='{}', expected='{}'", signerCn, admin.get().cn());
                 return ResponseEntity.status(403).body(
                         Map.of("error", "CN в сертификате не совпадает с CN в admins.env"));

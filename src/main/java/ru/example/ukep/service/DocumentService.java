@@ -22,6 +22,8 @@ import java.util.UUID;
 @Service
 public class DocumentService {
 
+    private static final String DOC_NOT_FOUND = "Документ не найден";
+
     private final DocumentRepository documentRepository;
     private final DocumentSignatureRepository signatureRepository;
     private final FileEncryptor encryptor;
@@ -44,13 +46,13 @@ public class DocumentService {
 
     public Document getOwned(Long id, User owner) {
         return documentRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
     }
 
     /** Для админа: получить документ по id без проверки владельца. */
     public Document getById(Long id) {
         return documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
     }
 
     /** Для админа: удалить документ без проверки владельца. */
@@ -135,7 +137,7 @@ public class DocumentService {
                                           String signatureBase64,
                                           String signerSubject, String signerSerial) {
         Document doc = documentRepository.findById(docId)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(DOC_NOT_FOUND));
 
         // Проверка: этот пользователь уже подписал?
         if (signatureRepository.existsByDocumentIdAndSignerUserId(docId, signer.getId())) {

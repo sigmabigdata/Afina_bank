@@ -19,6 +19,8 @@ import java.util.UUID;
 @Service
 public class UserService implements UserDetailsService {
 
+    private static final String USER_NOT_FOUND = "Пользователь не найден";
+
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UserService.class);
 
     public static final Duration LOGIN_TOKEN_TTL = Duration.ofHours(10);
@@ -145,7 +147,7 @@ public class UserService implements UserDetailsService {
     public User adminUpdate(Long id, String email, String fullName, String phone,
                             Role role, boolean enabled) {
         User u = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
 
         if (email != null && !email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
             String newHash = pii.hash(email);
@@ -174,7 +176,7 @@ public class UserService implements UserDetailsService {
     @Transactional
     public void adminDelete(Long id, String currentAdminEmail) {
         User u = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         if (currentAdminEmail != null && u.getEmail().equalsIgnoreCase(currentAdminEmail)) {
             throw new IllegalArgumentException("Нельзя удалить собственную учётную запись");
         }
@@ -184,7 +186,7 @@ public class UserService implements UserDetailsService {
     @Transactional
     public void adminToggle(Long id) {
         User u = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         // Админов не блокируем — у них вход по сертификату, вне сессии их «заблокировать» нельзя
         if (u.getRole() == Role.ROLE_ADMIN) {
             throw new IllegalArgumentException("Нельзя заблокировать администратора");

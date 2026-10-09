@@ -18,6 +18,9 @@ import java.util.Properties;
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
+    private static final String T_EMAIL = "EMAIL";
+    private static final String RES_OK = "SUCCESS";
+    private static final String RES_FAIL = "FAIL";
 
     /** Fallback: Spring Boot JavaMailSender из application-prod.yml (.env.prod) */
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
@@ -107,7 +110,7 @@ public class EmailService {
                     {}
                     ============================================================
                     """, to, subject, body);
-            audit.event("EMAIL_SENT", "SUCCESS", to, null, "EMAIL", null, subject, "dev-mode");
+            audit.event("EMAIL_SENT", "SUCCESS", to, null, T_EMAIL, null, subject, "dev-mode");
             return;
         }
 
@@ -121,12 +124,12 @@ public class EmailService {
             helper.setText(body, false);
             sender.send(msg);
             log.info("Email sent to {} (from {})", to, from);
-            audit.event("EMAIL_SENT", "SUCCESS", to, null, "EMAIL", null, subject, null);
+            audit.event("EMAIL_SENT", "SUCCESS", to, null, T_EMAIL, null, subject, null);
         } catch (Exception e) {
             log.error("Не удалось отправить письмо на {}", to, e);
             log.warn("[FALLBACK-MAIL] Кому: {}, subject: {}\n{}", to, subject, body);
-            audit.event("EMAIL_FAIL", "FAIL", to, null, "EMAIL", null, subject, e.getMessage());
-            throw new RuntimeException("SMTP: " + e.getMessage(), e);
+            audit.event("EMAIL_FAIL", "FAIL", to, null, T_EMAIL, null, subject, e.getMessage());
+            throw new IllegalStateException("SMTP: " + e.getMessage(), e);
         }
     }
 

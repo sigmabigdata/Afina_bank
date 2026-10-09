@@ -2,22 +2,27 @@ package ru.example.ukep.security;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
  * JPA-конвертер: прозрачно шифрует строку при записи в БД
  * и расшифровывает при чтении. Используется в @Convert на PII-полях.
+ *
+ * Регистрируется как Spring-бин (@Component) — в Spring Boot 3 + Hibernate 6
+ * LocalContainerEntityManagerFactoryBean подключает SpringBeanContainer,
+ * поэтому Hibernate берёт инстанс конвертера из Spring-контекста,
+ * а не создаёт его сам. Это позволяет использовать обычный
+ * constructor injection без статических полей и @Autowired-сеттера
+ * (Sonar java:S2696).
  */
-@Converter
 @Component
+@Converter
 public class PiiStringConverter implements AttributeConverter<String, String> {
 
-    private static PiiEncryptor encryptor;
+    private final PiiEncryptor encryptor;
 
-    @Autowired
-    public void setEncryptor(PiiEncryptor e) {
-        PiiStringConverter.encryptor = e;
+    public PiiStringConverter(PiiEncryptor encryptor) {
+        this.encryptor = encryptor;
     }
 
     @Override

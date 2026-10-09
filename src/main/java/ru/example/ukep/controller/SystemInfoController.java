@@ -22,6 +22,9 @@ public class SystemInfoController {
 
     private static final Logger log = LoggerFactory.getLogger(SystemInfoController.class);
 
+    private static final String UNKNOWN = "unknown";
+    private static final String REDIR = "redirect:/admin/system";
+
     private final SystemInfoService sys;
     private final BackupService backups;
     private final LogService logs;
@@ -57,14 +60,14 @@ public class SystemInfoController {
     public String createBackup(java.security.Principal auth, RedirectAttributes ra) {
         try {
             String name = backups.create();
-            String who = auth != null ? auth.getName() : "unknown";
+            String who = auth != null ? auth.getName() : UNKNOWN;
             audit.backupCreate(who, name);
             ra.addFlashAttribute("ok", "Бэкап создан: " + name);
         } catch (Exception e) {
             log.error("Backup create failed", e);
             ra.addFlashAttribute("err", "Ошибка создания бэкапа: " + e.getMessage());
         }
-        return "redirect:/admin/system";
+        return REDIR;
     }
 
     @PostMapping("/backups/{name}/delete")
@@ -76,7 +79,7 @@ public class SystemInfoController {
             log.error("Backup delete failed", e);
             ra.addFlashAttribute("err", "Ошибка удаления: " + e.getMessage());
         }
-        return "redirect:/admin/system";
+        return REDIR;
     }
 
     @PostMapping("/backups/{name}/restore")
@@ -86,11 +89,11 @@ public class SystemInfoController {
                                 RedirectAttributes ra) {
         if (!"RESTORE".equals(confirm)) {
             ra.addFlashAttribute("err", "Неверное подтверждение. Введите RESTORE.");
-            return "redirect:/admin/system";
+            return REDIR;
         }
         try {
             String safety = backups.restore(name);
-            String who = auth != null ? auth.getName() : "unknown";
+            String who = auth != null ? auth.getName() : UNKNOWN;
             audit.backupRestore(who, name);
             ra.addFlashAttribute("ok",
                     "БД восстановлена из " + name +
@@ -100,7 +103,7 @@ public class SystemInfoController {
             log.error("Backup restore failed", e);
             ra.addFlashAttribute("err", "Ошибка восстановления: " + e.getMessage());
         }
-        return "redirect:/admin/system";
+        return REDIR;
     }
 
     @GetMapping("/backups/{name}/download")
@@ -138,9 +141,13 @@ public class SystemInfoController {
     @ResponseBody
     public ResponseEntity<?> restart(java.security.Principal auth) {
         log.warn("Restart requested by admin");
-        audit.appRestart(auth != null ? auth.getName() : "unknown");
+        audit.appRestart(auth != null ? auth.getName() : UNKNOWN);
         new Thread(() -> {
-            try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
             log.warn("Exiting for restart");
             System.exit(0);
         }, "restart-thread").start();

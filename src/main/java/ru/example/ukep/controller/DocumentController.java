@@ -28,6 +28,9 @@ import java.util.zip.ZipOutputStream;
 @RequestMapping("/documents")
 public class DocumentController {
 
+    private static final String REDIR_DASHBOARD = "redirect:/dashboard";
+    private static final String CONTENT_DISP = "attachment; filename*=UTF-8''";
+
     private final DocumentService documentService;
     private final UserRepository userRepository;
     private final PiiEncryptor pii;
@@ -47,7 +50,7 @@ public class DocumentController {
     public String upload(@RequestParam("file") MultipartFile file,
                          @AuthenticationPrincipal UserDetails p) throws IOException {
         documentService.upload(file, current(p));
-        return "redirect:/dashboard";
+        return REDIR_DASHBOARD;
     }
 
     @GetMapping("/{id}/view")
@@ -72,7 +75,7 @@ public class DocumentController {
         Resource r = documentService.loadAsResource(doc);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(doc.getOriginalName(), StandardCharsets.UTF_8))
                 .body(r);
     }
@@ -90,7 +93,7 @@ public class DocumentController {
         String baseName = stripExtension(doc.getOriginalName());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(baseName + ".sig", StandardCharsets.UTF_8))
                 .body(sigBytes);
     }
@@ -130,7 +133,7 @@ public class DocumentController {
         String zipName = base + "_signed.zip";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(zipName, StandardCharsets.UTF_8))
                 .body(baos.toByteArray());
     }
@@ -139,7 +142,7 @@ public class DocumentController {
     public String delete(@PathVariable Long id,
                          @AuthenticationPrincipal UserDetails p) throws IOException {
         documentService.delete(id, current(p));
-        return "redirect:/dashboard";
+        return REDIR_DASHBOARD;
     }
 
     private static String stripExtension(String name) {
@@ -177,7 +180,7 @@ public class DocumentController {
         String fileName = base + "_sig_" + sig.getId() + ".sig";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                .header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISP +
                         URLEncoder.encode(fileName, StandardCharsets.UTF_8))
                 .body(bytes);
     }
@@ -193,6 +196,6 @@ public class DocumentController {
             throw new IllegalArgumentException("Подпись не относится к документу");
         }
         documentService.deleteSignature(sigId);
-        return "redirect:/dashboard";
+        return REDIR_DASHBOARD;
     }
 }

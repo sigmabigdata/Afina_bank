@@ -58,7 +58,7 @@ public class CryptoProInitializer {
                             (java.security.Provider) revCls.getDeclaredConstructor().newInstance());
                     log.info("CryptoPro RevCheck provider registered");
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 log.warn("RevCheck не зарегистрирован: {}", t.getMessage());
             }
 
@@ -104,20 +104,20 @@ public class CryptoProInitializer {
                                 cls.getMethod(m, boolean.class).invoke(null, false);
                                 log.info("{}#{}(false) — OK", c, m);
                                 done = true;
-                            } catch (Throwable ignored) {}
+                            } catch (Exception ignored) {}
                         }
-                    } catch (Throwable ignored) {}
+                    } catch (Exception ignored) {}
                 }
                 if (!done) {
                     log.warn("Reflection setUseNativeVerify: ни один метод не найден, "
                            + "полагаемся на системные свойства");
                 }
                 log.info("CAdES native verify disabled (attempted)");
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 log.warn("CAdESConfig не настроен: {}", t.getMessage());
             }
 
-        } catch (Throwable t) {
+        } catch (Exception t) {
             log.warn("CryptoPro провайдеры не зарегистрированы. " +
                     "Проверка подписи не будет работать. Причина: {}", t.getMessage());
         }

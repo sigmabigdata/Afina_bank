@@ -10,9 +10,7 @@ import java.lang.management.RuntimeMXBean;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Собирает метрики сервера и БД для админ-панели.
@@ -99,7 +97,12 @@ public class SystemInfoService {
     private long cpuPercent() {
         try {
             long[] s1 = readCpuStat();
-            Thread.sleep(200);
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return 0;
+            }
             long[] s2 = readCpuStat();
             long idle  = s2[3] - s1[3];
             long total = 0;

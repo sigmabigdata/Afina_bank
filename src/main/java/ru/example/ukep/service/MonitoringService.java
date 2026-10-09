@@ -5,14 +5,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import ru.example.ukep.entity.MonitorEvent;
 import ru.example.ukep.repository.MonitorEventRepository;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -29,6 +27,8 @@ public class MonitoringService {
 
     private static final Logger log = LoggerFactory.getLogger(MonitoringService.class);
     private static final int ALERT_THRESHOLD = 3;
+    private static final String SYSTEM = "system";
+    private static final String KEY_FAILS = "monitor.consecutive_fails";
 
     private final MonitorEventRepository eventRepo;
     private final SettingsService settings;
@@ -72,13 +72,18 @@ public class MonitoringService {
         }
     }
 
-    @Transactional
-    protected void onSuccess() {
-        int fails = settings.getIntOrDefault("monitor.consecutive_fails", 0);
+    /**
+     * Вызывается из checkHealth() в том же классе. Убрана @Transactional:
+     * saveEvent + settings.set — каждая операция сама по себе транзакционна,
+     * a protected @Transactional из того же класса всё равно не сработал бы
+     * (self-invocation, Sonar java:S2230).
+     */
+    private void onSuccess() {
+        int fails = settings.getIntOrDefault(KEY_FAILS, 0);
         if (fails > 0) {
             log.info("Восстановление после {} сбоев", fails);
             saveEvent("OK", "Восстановление после " + fails + " сбоев", false);
-            settings.set("monitor.consecutive_fails", "0", "system");
+            settings.set(KEY_FAILS, "0", SYSTEM);
             return;
         }
 
@@ -88,7 +93,7 @@ public class MonitoringService {
         java.time.Instant hourAgo = java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.HOURS);
         if (lastOk == null || lastOk.isBefore(hourAgo)) {
             saveEvent("OK", "Регулярная проверка", false);
-            settings.set("monitor.last_ok_at", java.time.Instant.now().toString(), "system");
+            settings.set("monitor.last_ok_at", java.time.Instant.now().toString(), SYSTEM);
         }
     }
 
@@ -98,10 +103,9 @@ public class MonitoringService {
         try { return java.time.Instant.parse(v); } catch (Exception e) { return null; }
     }
 
-    @Transactional
-    protected void onFailure(String reason) {
-        int fails = settings.getIntOrDefault("monitor.consecutive_fails", 0) + 1;
-        settings.set("monitor.consecutive_fails", String.valueOf(fails), "system");
+    private void onFailure(String reason) {
+        int fails = settings.getIntOrDefault(KEY_FAILS, 0) + 1;
+        settings.set(KEY_FAILS, String.valueOf(fails), SYSTEM);
 
         boolean shouldAlert = (fails == ALERT_THRESHOLD) ||
                               (fails > ALERT_THRESHOLD && fails % 3 == 0);
@@ -115,7 +119,7 @@ public class MonitoringService {
             } else {
                 try {
                     emailService.sendAlert(to, fails, reason);
-                    settings.set("monitor.last_alert_at", Instant.now().toString(), "system");
+                    settings.set("monitor.last_alert_at", Instant.now().toString(), SYSTEM);
                     saveEvent("FAIL", "Алерт отправлен на " + to + ": " + reason, true);
                     log.info("Алерт отправлен на {}", to);
                 } catch (Exception e) {

@@ -45,6 +45,8 @@ public class CrlDownloader {
     private static final Logger log = LoggerFactory.getLogger(CrlDownloader.class);
 
     private static final String CDP_OID = "2.5.29.31";
+    private static final String AUTO_PREFIX = "auto-";
+    private static final String CRL_SUFFIX = ".crl";
 
     private final Path crlDir;
     private final long maxAgeHours;
@@ -127,7 +129,7 @@ public class CrlDownloader {
             // Читаем issuer из скачанного CRL
             X509CRL crl = parseCrl(tmp);
             String issuerKey = issuerKey(crl);
-            Path target = crlDir.resolve("auto-" + issuerKey + ".crl");
+            Path target = crlDir.resolve(AUTO_PREFIX + issuerKey + CRL_SUFFIX);
 
             // Если уже есть свежий файл для этого issuer — не перезаписываем
             if (Files.isRegularFile(target)) {
@@ -160,12 +162,12 @@ public class CrlDownloader {
         try (var stream = Files.list(crlDir)) {
             var files = stream
                     .filter(Files::isRegularFile)
-                    .filter(f -> f.getFileName().toString().startsWith("auto-"))
-                    .filter(f -> f.getFileName().toString().endsWith(".crl"))
+                    .filter(f -> f.getFileName().toString().startsWith(AUTO_PREFIX))
+                    .filter(f -> f.getFileName().toString().endsWith(CRL_SUFFIX))
                     .toList();
             for (var f : files) {
                 String name = f.getFileName().toString();
-                if (name.equals("auto-" + currentIssuerKey + ".crl")) continue;
+                if (name.equals(AUTO_PREFIX + currentIssuerKey + CRL_SUFFIX)) continue;
                 try {
                     // Проверяем, тот ли это issuer
                     X509CRL other = parseCrl(f);
