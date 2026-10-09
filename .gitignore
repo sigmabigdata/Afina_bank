@@ -54,3 +54,13 @@ crls/*.crl
 *.bak
 *.bak.*
 *.backup
+
+# SonarQube
+.scannerwork/
+hotspots.csv
+hotspots.json
+issues.csv
+issues.json
+measures.json
+sonar-report.html
+make-report.sh

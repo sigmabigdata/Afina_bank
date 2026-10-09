@@ -177,7 +177,9 @@ public class CrlDownloader {
                         Files.deleteIfExists(f);
                         log.info("Удалён устаревший CRL: {}", name);
                     }
-                } catch (Exception ignored) {
+                } catch (Exception parseEx) {
+                    log.debug("CRL parse failed for {}: {}",
+                            name, parseEx.getMessage());
                     // Файл не парсится — удалим, если он старый
                     long ageMs = System.currentTimeMillis()
                             - Files.getLastModifiedTime(f).toMillis();

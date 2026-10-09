@@ -89,7 +89,9 @@ public class AuditController {
                 model.addAttribute("lastCleanupAt", java.time.Instant.parse(lastCleanupStr));
                 model.addAttribute("lastCleanupDeleted",
                         settings.getOrDefault("audit.last_cleanup_deleted", "0"));
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                log.debug("lastCleanup parse failed: {}", ex.getMessage());
+            }
         }
         return "admin-audit";
     }

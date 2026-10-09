@@ -190,7 +190,9 @@ public class SignatureVerifier {
                 }
                 try (InputStream is = Files.newInputStream(f)) {
                     result.add((X509Certificate) cf.generateCertificate(is));
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    log.debug("Skipping certificate: {}", ex.getMessage());
+                }
             });
         } catch (Exception e) {
             log.error("loadTrustedCerts error", e);
@@ -254,7 +256,9 @@ public class SignatureVerifier {
             try {
                 candidates.add(new JcaX509CertificateConverter().setProvider("BC")
                         .getCertificate(holder));
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                log.debug("Skipping certificate: {}", ex.getMessage());
+            }
         }
 
         X509Certificate current = leaf;
@@ -321,7 +325,9 @@ public class SignatureVerifier {
                             trusted.getPublicKey().getEncoded())) {
                         return true;
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    log.debug("Skipping certificate: {}", ex.getMessage());
+                }
             }
         }
         return false;

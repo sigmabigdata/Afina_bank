@@ -101,7 +101,9 @@ public class BackupService {
                 while ((line = br.readLine()) != null) {
                     stderrBuf.append(line).append("\n");
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException ex) {
+                log.debug("stream read interrupted: {}", ex.getMessage());
+            }
         }, "pg_dump-stderr");
         errThread.setDaemon(true);
         errThread.start();
@@ -208,7 +210,9 @@ public class BackupService {
                     new InputStreamReader(proc.getInputStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) outBuf.append(line).append("\n");
-            } catch (IOException ignored) {}
+            } catch (IOException ex) {
+                log.debug("stream read interrupted: {}", ex.getMessage());
+            }
         }, tag + "-out");
 
         Thread errThread = new Thread(() -> {
@@ -216,7 +220,9 @@ public class BackupService {
                     new InputStreamReader(proc.getErrorStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) errBuf.append(line).append("\n");
-            } catch (IOException ignored) {}
+            } catch (IOException ex) {
+                log.debug("stream read interrupted: {}", ex.getMessage());
+            }
         }, tag + "-err");
 
         outThread.setDaemon(true);
@@ -329,7 +335,9 @@ public class BackupService {
                     new InputStreamReader(proc.getErrorStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) stderrBuf.append(line).append("\n");
-            } catch (IOException ignored) {}
+            } catch (IOException ex) {
+                log.debug("stream read interrupted: {}", ex.getMessage());
+            }
         }, "psql-super-stderr");
         errThread.setDaemon(true);
         errThread.start();

@@ -1,5 +1,7 @@
 package ru.example.ukep.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +20,8 @@ import java.util.*;
  */
 @Service
 public class SystemInfoService {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemInfoService.class);
 
     private final JdbcTemplate jdbc;
 
@@ -217,7 +221,9 @@ public class SystemInfoService {
             result.put("usersCount", users);
             result.put("docsCount", docs);
             result.put("sigsCount", sigs);
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            log.debug("stat query failed: {}", ex.getMessage());
+        }
 
         return result;
     }
@@ -235,7 +241,9 @@ public class SystemInfoService {
         try {
             File f = new File(System.getProperty("user.dir"));
             info.put("workingDir", f.getAbsolutePath());
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            log.debug("stat query failed: {}", ex.getMessage());
+        }
         return info;
     }
 
