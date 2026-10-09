@@ -91,21 +91,8 @@ public class KeysService {
             String modifiedAt = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
                     .withZone(ZoneId.systemDefault()).format(modified);
 
-            String perms = "—";
-            String owner = "—";
-            String problem = null;
-
-            try {
-                PosixFileAttributes attrs = Files.readAttributes(path, PosixFileAttributes.class);
-                perms = PosixFilePermissions.toString(attrs.permissions());
-                owner = attrs.owner().getName() + ":" + attrs.group().getName();
-
-                if (!"rw-------".equals(perms)) {
-                    problem = "Права не 600 (текущие: " + perms + ")";
-                }
-            } catch (UnsupportedOperationException ignored) {
-                // Windows/не-POSIX
-            }
+            PosixInfo posix = inspectPosix(path);
+            String problem = posix.problem();
 
             if (size != 45) {
                 problem = (problem != null ? problem + "; " : "")
@@ -113,10 +100,30 @@ public class KeysService {
             }
 
             return new KeyInfo(name, description, path.toString(),
-                    true, size, modifiedAt, perms, owner, problem);
+                    true, size, modifiedAt, posix.perms(), posix.owner(), problem);
         } catch (IOException e) {
             return new KeyInfo(name, description, path.toString(),
                     false, 0, "—", "—", "—", "Ошибка чтения: " + e.getMessage());
+        }
+    }
+
+    /** Результат чтения POSIX-атрибутов файла. */
+    private record PosixInfo(String perms, String owner, String problem) {}
+
+    /** Читает права и владельца. На не-POSIX системах возвращает прочерки. */
+    private PosixInfo inspectPosix(Path path) {
+        try {
+            PosixFileAttributes attrs = Files.readAttributes(path, PosixFileAttributes.class);
+            String perms = PosixFilePermissions.toString(attrs.permissions());
+            String owner = attrs.owner().getName() + ":" + attrs.group().getName();
+            String problem = "rw-------".equals(perms)
+                    ? null
+                    : "Права не 600 (текущие: " + perms + ")";
+            return new PosixInfo(perms, owner, problem);
+        } catch (UnsupportedOperationException e) {
+            return new PosixInfo("—", "—", null);
+        } catch (Exception e) {
+            return new PosixInfo("—", "—", "Ошибка чтения атрибутов: " + e.getMessage());
         }
     }
 

@@ -57,33 +57,39 @@ public class CrlRefreshService {
 
         try {
             List<DocumentSignature> all = signatureRepo.findAll();
-            Set<X509Certificate> uniqueCerts = new HashSet<>();
-            int parsed = 0;
-            int errors = 0;
+            CollectResult res = collectAllCerts(all);
+            log.info("CrlRefreshService: подписей {} (распарсено {}, ошибок {}), "
+                            + "уникальных сертификатов {}",
+                    all.size(), res.parsed(), res.errors(), res.certs().size());
 
-            for (DocumentSignature sig : all) {
-                try {
-                    Set<X509Certificate> certs = extractCerts(sig.getSignatureBase64());
-                    uniqueCerts.addAll(certs);
-                    parsed++;
-                } catch (Exception e) {
-                    errors++;
-                    log.debug("Не удалось разобрать подпись id={}: {}",
-                            sig.getId(), e.getMessage());
-                }
-            }
-
-            log.info("CrlRefreshService: подписей {} (распарсено {}, ошибок {}), " +
-                    "уникальных сертификатов {}",
-                    all.size(), parsed, errors, uniqueCerts.size());
-
-            int updated = crlDownloader.ensureCrlsFor(uniqueCerts);
+            int updated = crlDownloader.ensureCrlsFor(res.certs());
             long dt = System.currentTimeMillis() - t0;
             log.info("CrlRefreshService: завершено за {} мс, обновлено {} CRL",
                     dt, updated);
         } catch (Exception e) {
             log.error("CrlRefreshService: ошибка", e);
         }
+    }
+
+    /** Результат обхода всех подписей: уникальные сертификаты + счётчики. */
+    private record CollectResult(Set<X509Certificate> certs, int parsed, int errors) {}
+
+    /** Собирает уникальные сертификаты из всех подписей. */
+    private CollectResult collectAllCerts(List<DocumentSignature> signatures) {
+        Set<X509Certificate> uniqueCerts = new HashSet<>();
+        int parsed = 0;
+        int errors = 0;
+        for (DocumentSignature sig : signatures) {
+            try {
+                uniqueCerts.addAll(extractCerts(sig.getSignatureBase64()));
+                parsed++;
+            } catch (Exception e) {
+                errors++;
+                log.debug("Не удалось разобрать подпись id={}: {}",
+                        sig.getId(), e.getMessage());
+            }
+        }
+        return new CollectResult(uniqueCerts, parsed, errors);
     }
 
     /** Извлекает все сертификаты из CAdES-BES подписи. */
