@@ -257,7 +257,10 @@ public class BackupService {
             pb.environment().put(ENV_PGPASSWORD, dbPassword);
             Process p = pb.start();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                while (br.readLine() != null) { /* skip */ }
+                // читаем и выбрасываем вывод psql, чтобы не блокировать pipe
+                @SuppressWarnings("unused")
+                String ignored;
+                while ((ignored = br.readLine()) != null) { /* drain */ }
             }
             p.waitFor(5, TimeUnit.SECONDS);
             log.info("Terminated active connections to {}", db.name);

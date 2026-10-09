@@ -38,39 +38,40 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String method = req.getMethod();
         String ip = clientIp(req);
 
+        if (!isAllowed(path, method, req, resp, ip)) {
+            return;
+        }
+        chain.doFilter(req, resp);
+    }
+
+    /**
+     * Проверяет лимит для конкретного endpoint. Возвращает false, если
+     * запрос уже отклонён (в resp записан 429).
+     */
+    private boolean isAllowed(String path, String method,
+                              HttpServletRequest req, HttpServletResponse resp,
+                              String ip) throws IOException {
         // /login (POST) — 5 попыток / 15 мин на IP+email
         if ("/login".equals(path) && "POST".equalsIgnoreCase(method)) {
             String email = req.getParameter("email");
             String emailKey = (email == null || email.isBlank())
                     ? "anon"
                     : email.toLowerCase().trim();
-            if (!check(req, resp, "login:" + ip + ":" + emailKey, 5, Duration.ofMinutes(15))) {
-                return;
-            }
+            return check(req, resp, "login:" + ip + ":" + emailKey, 5, Duration.ofMinutes(15));
         }
-
         // /admin/challenge — 10 / 15 мин на IP
-        else if ("/admin/challenge".equals(path)) {
-            if (!check(req, resp, "challenge:" + ip, 10, Duration.ofMinutes(15))) {
-                return;
-            }
+        if ("/admin/challenge".equals(path)) {
+            return check(req, resp, "challenge:" + ip, 10, Duration.ofMinutes(15));
         }
-
         // /admin/cert-login — 5 / 15 мин на IP
-        else if ("/admin/cert-login".equals(path) && "POST".equalsIgnoreCase(method)) {
-            if (!check(req, resp, "certlogin:" + ip, 5, Duration.ofMinutes(15))) {
-                return;
-            }
+        if ("/admin/cert-login".equals(path) && "POST".equalsIgnoreCase(method)) {
+            return check(req, resp, "certlogin:" + ip, 5, Duration.ofMinutes(15));
         }
-
         // /login/confirm — 20 / 15 мин на IP (защита от перебора токена)
-        else if ("/login/confirm".equals(path)) {
-            if (!check(req, resp, "confirm:" + ip, 20, Duration.ofMinutes(15))) {
-                return;
-            }
+        if ("/login/confirm".equals(path)) {
+            return check(req, resp, "confirm:" + ip, 20, Duration.ofMinutes(15));
         }
-
-        chain.doFilter(req, resp);
+        return true;
     }
 
     private boolean check(HttpServletRequest req, HttpServletResponse resp,

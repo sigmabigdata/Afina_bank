@@ -110,7 +110,7 @@ public class EmailService {
                     {}
                     ============================================================
                     """, to, subject, body);
-            audit.event("EMAIL_SENT", "SUCCESS", to, null, T_EMAIL, null, subject, "dev-mode");
+            audit.emailSent(to, subject, "dev-mode");
             return;
         }
 
@@ -124,12 +124,16 @@ public class EmailService {
             helper.setText(body, false);
             sender.send(msg);
             log.info("Email sent to {} (from {})", to, from);
-            audit.event("EMAIL_SENT", "SUCCESS", to, null, T_EMAIL, null, subject, null);
+            audit.emailSent(to, subject);
         } catch (Exception e) {
-            log.error("Не удалось отправить письмо на {}", to, e);
             log.warn("[FALLBACK-MAIL] Кому: {}, subject: {}\n{}", to, subject, body);
-            audit.event("EMAIL_FAIL", "FAIL", to, null, T_EMAIL, null, subject, e.getMessage());
-            throw new IllegalStateException("SMTP: " + e.getMessage(), e);
+            audit.emailFail(to, subject, e.getMessage());
+            // Не логируем e.error-ом здесь: throw ниже отдаст исключение
+            // наверх, там его залогирует вызывающий код. Так избегаем
+            // двойного логирования одной и той же ошибки (S2139).
+            throw new IllegalStateException(
+                    "SMTP: не удалось отправить письмо на " + to
+                    + " (subject: " + subject + "): " + e.getMessage(), e);
         }
     }
 

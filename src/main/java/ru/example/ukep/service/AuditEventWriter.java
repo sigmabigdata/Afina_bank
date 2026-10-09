@@ -31,18 +31,17 @@ public class AuditEventWriter {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void write(String type, String result, String actorEmail, String actorRole,
-                      String targetType, String targetId, String targetInfo, String details) {
+    public void write(AuditEntry entry) {
         try {
             AuditEvent e = new AuditEvent();
-            e.setEventType(type);
-            e.setResult(result);
-            e.setActorEmail(actorEmail);
-            e.setActorRole(actorRole);
-            e.setTargetType(targetType);
-            e.setTargetId(targetId);
-            e.setTargetInfo(truncate(targetInfo, 500));
-            e.setDetails(details);
+            e.setEventType(entry.type());
+            e.setResult(entry.result());
+            e.setActorEmail(entry.actorEmail());
+            e.setActorRole(entry.actorRole());
+            e.setTargetType(entry.targetType());
+            e.setTargetId(entry.targetId());
+            e.setTargetInfo(truncate(entry.targetInfo(), 500));
+            e.setDetails(entry.details());
 
             HttpServletRequest req = currentRequest();
             if (req != null) {
@@ -51,9 +50,9 @@ public class AuditEventWriter {
             }
 
             repo.save(e);
-            log.debug("audit: {} {}", type, result);
+            log.debug("audit: {} {}", entry.type(), entry.result());
         } catch (Exception ex) {
-            log.warn("audit failed: {} — {}", type, ex.getMessage());
+            log.warn("audit failed: {} — {}", entry.type(), ex.getMessage());
         }
     }
 

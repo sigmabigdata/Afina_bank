@@ -77,9 +77,7 @@ public class KeysController {
         String who = auth != null ? auth.getName() : "unknown";
         log.warn("Key backup downloaded by {} ({} bytes)", who, baos.size());
         keys.recordBackupDownload(who);
-        audit.event("KEYS_DOWNLOAD", "WARN", who, "ROLE_ADMIN",
-                "KEYS", "file.key+pii.key", zipName,
-                "Скачан архив с ключами шифрования");
+        audit.keysDownload(who, zipName);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)

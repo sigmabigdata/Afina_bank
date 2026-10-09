@@ -250,29 +250,12 @@ public class SignatureVerifier {
         List<X509Certificate> chain = new ArrayList<>();
         chain.add(leaf);
 
-        Set<X509Certificate> candidates = new HashSet<>();
-        Store<X509CertificateHolder> certStore = cms.getCertificates();
-        for (X509CertificateHolder holder : certStore.getMatches(null)) {
-            try {
-                candidates.add(new JcaX509CertificateConverter().setProvider("BC")
-                        .getCertificate(holder));
-            } catch (Exception ex) {
-                log.debug("Skipping certificate: {}", ex.getMessage());
-            }
-        }
+        Set<X509Certificate> candidates = collectCandidates(cms);
 
         X509Certificate current = leaf;
         int maxDepth = 10;
         while (!isSelfSigned(current) && maxDepth-- > 0) {
-            X509Certificate issuer = null;
-            for (X509Certificate candidate : candidates) {
-                if (current.getIssuerX500Principal().equals(candidate.getSubjectX500Principal())) {
-                    if (verifySignature(current, candidate)) {
-                        issuer = candidate;
-                        break;
-                    }
-                }
-            }
+            X509Certificate issuer = findIssuer(current, candidates);
             if (issuer == null) {
                 throw new IllegalStateException(
                         "Не найден issuer для " + current.getSubjectX500Principal());
@@ -284,6 +267,34 @@ public class SignatureVerifier {
             throw new IllegalStateException("Цепочка слишком длинная (>10)");
         }
         return chain;
+    }
+
+    /** Все сертификаты из CMS в виде Set. Невалидные — тихо пропускаем. */
+    private Set<X509Certificate> collectCandidates(CMSSignedData cms) {
+        Set<X509Certificate> candidates = new HashSet<>();
+        Store<X509CertificateHolder> certStore = cms.getCertificates();
+        JcaX509CertificateConverter conv = new JcaX509CertificateConverter().setProvider("BC");
+        for (X509CertificateHolder holder : certStore.getMatches(null)) {
+            try {
+                candidates.add(conv.getCertificate(holder));
+            } catch (Exception ex) {
+                log.debug("Skipping certificate: {}", ex.getMessage());
+            }
+        }
+        return candidates;
+    }
+
+    /** Ищет issuer для cert среди candidates с проверкой подписи. */
+    private X509Certificate findIssuer(X509Certificate cert, Set<X509Certificate> candidates) {
+        for (X509Certificate candidate : candidates) {
+            if (!cert.getIssuerX500Principal().equals(candidate.getSubjectX500Principal())) {
+                continue;
+            }
+            if (verifySignature(cert, candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private void verifyChainSignatures(List<X509Certificate> chain) {

@@ -18,6 +18,8 @@ public class AuditService {
     private static final String WARN = "WARN";
     private static final String T_USER = "USER";
     private static final String T_DOC = "DOCUMENT";
+    private static final String T_EMAIL = "EMAIL";
+    private static final String T_KEYS = "KEYS";
 
     private final AuditEventWriter writer;
 
@@ -25,82 +27,101 @@ public class AuditService {
         this.writer = writer;
     }
 
+    private void write(String type, String result, String actorEmail, String actorRole,
+                       String targetType, String targetId, String targetInfo, String details) {
+        writer.write(new AuditEntry(type, result, actorEmail, actorRole,
+                targetType, targetId, targetInfo, details));
+    }
+
     public void loginSuccess(String email, String role) {
-        writer.write("LOGIN_SUCCESS", OK, email, role, null, null, null, null);
+        write("LOGIN_SUCCESS", OK, email, role, null, null, null, null);
     }
 
     public void loginFail(String email, String reason) {
-        writer.write("LOGIN_FAIL", FAIL, email, null, null, null, null, reason);
+        write("LOGIN_FAIL", FAIL, email, null, null, null, null, reason);
     }
 
     public void adminLoginSuccess(String cn) {
-        writer.write("ADMIN_LOGIN_SUCCESS", OK, cn, "ROLE_ADMIN", null, null, null, null);
+        write("ADMIN_LOGIN_SUCCESS", OK, cn, "ROLE_ADMIN", null, null, null, null);
     }
 
     public void adminLoginFail(String cn, String reason) {
-        writer.write("ADMIN_LOGIN_FAIL", FAIL, cn, "ROLE_ADMIN", null, null, null, reason);
+        write("ADMIN_LOGIN_FAIL", FAIL, cn, "ROLE_ADMIN", null, null, null, reason);
     }
 
     public void userCreate(String actor, Long userId, String email) {
-        writer.write("USER_CREATE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
+        write("USER_CREATE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
     }
 
     public void userUpdate(String actor, Long userId, String email) {
-        writer.write("USER_UPDATE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
+        write("USER_UPDATE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
     }
 
     public void userDelete(String actor, Long userId, String email) {
-        writer.write("USER_DELETE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
+        write("USER_DELETE", OK, actor, null, T_USER, String.valueOf(userId), email, null);
     }
 
     public void documentUpload(String actor, Long docId, String name) {
-        writer.write("DOC_UPLOAD", OK, actor, null, T_DOC, String.valueOf(docId), name, null);
+        write("DOC_UPLOAD", OK, actor, null, T_DOC, String.valueOf(docId), name, null);
     }
 
     public void documentDelete(String actor, Long docId, String name, boolean signed) {
-        writer.write("DOC_DELETE", OK, actor, null, T_DOC, String.valueOf(docId), name,
+        write("DOC_DELETE", OK, actor, null, T_DOC, String.valueOf(docId), name,
                 signed ? "Подписанный документ" : null);
     }
 
     public void signSuccess(String actor, Long docId, String signerSubject) {
-        writer.write("SIGN_SUCCESS", OK, actor, null, T_DOC, String.valueOf(docId), signerSubject, null);
+        write("SIGN_SUCCESS", OK, actor, null, T_DOC, String.valueOf(docId), signerSubject, null);
     }
 
     public void signFail(String actor, Long docId, String reason) {
-        writer.write("SIGN_FAIL", FAIL, actor, null, T_DOC, String.valueOf(docId), null, reason);
+        write("SIGN_FAIL", FAIL, actor, null, T_DOC, String.valueOf(docId), null, reason);
     }
 
     public void signatureDeleteAttempt(String actor, Long docId) {
-        writer.write("SIGNATURE_DELETE_ATTEMPT", WARN, actor, null, T_DOC, String.valueOf(docId), null,
+        write("SIGNATURE_DELETE_ATTEMPT", WARN, actor, null, T_DOC, String.valueOf(docId), null,
                 "Попытка удаления подписи заблокирована");
     }
 
     public void rateLimit(String ip, String endpoint) {
-        writer.write("RATE_LIMIT", WARN, null, null, "ENDPOINT", endpoint, null, "IP: " + ip);
+        write("RATE_LIMIT", WARN, null, null, "ENDPOINT", endpoint, null, "IP: " + ip);
     }
 
     public void backupCreate(String actor, String fileName) {
-        writer.write("BACKUP_CREATE", OK, actor, null, "BACKUP", fileName, null, null);
+        write("BACKUP_CREATE", OK, actor, null, "BACKUP", fileName, null, null);
     }
 
     public void backupRestore(String actor, String fileName) {
-        writer.write("BACKUP_RESTORE", WARN, actor, null, "BACKUP", fileName, null, "Заменены все данные");
+        write("BACKUP_RESTORE", WARN, actor, null, "BACKUP", fileName, null, "Заменены все данные");
     }
 
     public void appRestart(String actor) {
-        writer.write("APP_RESTART", WARN, actor, null, "SYSTEM", null, null, null);
+        write("APP_RESTART", WARN, actor, null, "SYSTEM", null, null, null);
     }
 
     public void settingsUpdate(String actor, String keys) {
-        writer.write("SETTINGS_UPDATE", OK, actor, null, "SETTINGS", null, keys, null);
+        write("SETTINGS_UPDATE", OK, actor, null, "SETTINGS", null, keys, null);
     }
 
-    /**
-     * Passthrough для нестандартных событий (EMAIL_SENT, KEYS_DOWNLOAD и т.п.).
-     * Существует потому, что часть кода зовёт audit.event(...) напрямую.
-     */
-    public void event(String type, String result, String actorEmail, String actorRole,
-                      String targetType, String targetId, String targetInfo, String details) {
-        writer.write(type, result, actorEmail, actorRole, targetType, targetId, targetInfo, details);
+    // ============ Email ============
+
+    public void emailSent(String to, String subject) {
+        write("EMAIL_SENT", OK, to, null, T_EMAIL, null, subject, null);
+    }
+
+    public void emailSent(String to, String subject, String details) {
+        write("EMAIL_SENT", OK, to, null, T_EMAIL, null, subject, details);
+    }
+
+    public void emailFail(String to, String subject, String reason) {
+        write("EMAIL_FAIL", FAIL, to, null, T_EMAIL, null, subject, reason);
+    }
+
+    // ============ Keys ============
+
+    public void keysDownload(String actor, String fileName) {
+        write("KEYS_DOWNLOAD", WARN, actor, "ROLE_ADMIN",
+                T_KEYS, "file.key+pii.key", fileName,
+                "Скачан архив с ключами шифрования");
     }
 }
