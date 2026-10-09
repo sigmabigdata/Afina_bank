@@ -451,11 +451,17 @@ Retention: `audit.retention_days` (по умолчанию 365), автоочи�
     # или
     cd /opt/afina && ./backup-prod.sh
 
-Создаёт в `backups/`:
-- `afina_YYYYMMDD_HHMMSS.sql.gz` — дамп БД
-- `storage_YYYYMMDD_HHMMSS.tar.gz` — архив `storage/documents/` (уже зашифрован)
+Создаёт в `backups/` (оба файла — **AES-256-CBC**):
+- `afina_YYYYMMDD_HHMMSS.sql.gz.enc` — дамп БД, зашифрован
+- `storage_YYYYMMDD_HHMMSS.tar.gz.enc` — архив `storage/documents/`, зашифрован
+
+Пароль берётся из `secrets/backup.pass` (0600, владелец root). Если файла нет —
+скрипт откажется работать (никаких незашифрованных бэкапов «по инерции»).
 
 Ротация: удаляются файлы старше 30 дней.
+
+**Тот же файл `secrets/backup.pass` нужен для восстановления.** Сохраните его
+в менеджере паролей и в сейфе — иначе бэкапы не расшифровать.
 
 **Автоматически:** cron `/etc/cron.d/afina-backup` ежедневно в 3:00.
 
@@ -467,11 +473,24 @@ Retention: `audit.retention_days` (по умолчанию 365), автоочи�
 **Через CLI:**
 
     cd /opt/afina
+    ./restore-prod.sh backups/afina_YYYYMMDD_HHMMSS.sql.gz.enc
+
+Скрипт сам расшифрует `.enc` (пароль — `secrets/backup.pass`), остановит app,
+сольёт дамп, поправит владельцев таблиц и запустит app обратно.
+
+Для бэкапов старого формата (`.sql.gz` без `.enc`) — тоже работает.
+
+**Вручную (если CLI недоступен):**
+
+    cd /opt/afina
     docker compose -f docker-compose-prod.yml --env-file .env.prod stop app
 
-    # Восстановить БД
-    gunzip -c backups/afina_YYYYMMDD_HHMMSS.sql.gz | \
-      docker exec -i afina-postgres psql -U postgres -d afina_db
+    # Расшифровать и восстановить БД
+    openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+        -pass file:secrets/backup.pass \
+        -in backups/afina_YYYYMMDD_HHMMSS.sql.gz.enc \
+      | gunzip \
+      | docker exec -i afina-postgres psql -U afina_migrator -d afina_db -q
 
     # Восстановить владельцев и права
     docker exec -i afina-postgres psql -U postgres -d afina_db <<'SQL'
