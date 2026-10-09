@@ -20,6 +20,8 @@ import java.util.Map;
 @RequestMapping("/api/sign")
 public class SignApiController {
 
+    private static final String K_ERROR = "error";
+
     private final DocumentService documentService;
     private final SignatureVerifier signatureVerifier;
     private final AuditService audit;
@@ -47,7 +49,7 @@ public class SignApiController {
 
     /** Пользователь подписывает свой документ. */
     @PostMapping("/accept")
-    public ResponseEntity<?> acceptUser(@RequestBody SignRequest req,
+    public ResponseEntity<Map<String, Object>> acceptUser(@RequestBody SignRequest req,
                                         @AuthenticationPrincipal UserDetails p) {
         User user = current(p);
         Document doc = documentService.getOwned(req.getDocumentId(), user);
@@ -56,18 +58,18 @@ public class SignApiController {
 
     /** Админ подписывает документ любого клиента. */
     @PostMapping("/admin/accept")
-    public ResponseEntity<?> acceptAdmin(@RequestBody SignRequest req,
+    public ResponseEntity<Map<String, Object>> acceptAdmin(@RequestBody SignRequest req,
                                          @AuthenticationPrincipal UserDetails p) {
         User admin = current(p);
         if (admin.getRole() != ru.example.ukep.entity.Role.ROLE_ADMIN) {
-            return ResponseEntity.status(403).body(Map.of("error", "Только для администратора"));
+            return ResponseEntity.status(403).body(Map.of(K_ERROR, "Только для администратора"));
         }
         Document doc = documentRepository.findByIdWithOwner(req.getDocumentId())
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден"));
         return doAccept(doc, doc.getOwner(), req.getSignatureBase64());
     }
 
-    private ResponseEntity<?> doAccept(Document doc, User owner, String sig) {
+    private ResponseEntity<Map<String, Object>> doAccept(Document doc, User owner, String sig) {
         String ownerEmail = safeOwnerEmail(owner);
         try {
             Map<String, Object> result = signatureVerifier.verifyDetached(
@@ -82,11 +84,11 @@ public class SignApiController {
                     "signersInfo", result.get("signersInfo")));
         } catch (IllegalArgumentException e) {
             audit.signFail(ownerEmail, doc.getId(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of(K_ERROR, e.getMessage()));
         } catch (Exception e) {
             audit.signFail(ownerEmail, doc.getId(), e.getMessage());
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Ошибка проверки подписи: " + e.getMessage()));
+                    .body(Map.of(K_ERROR, "Ошибка проверки подписи: " + e.getMessage()));
         }
     }
 

@@ -43,7 +43,9 @@ public class MigrateEncryption implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         List<Document> all = repo.findAll();
-        int migrated = 0, skipped = 0, failed = 0;
+        int migrated = 0;
+        int skipped = 0;
+        int failed = 0;
 
         for (Document doc : all) {
             if (doc.isEncrypted()) { skipped++; continue; }

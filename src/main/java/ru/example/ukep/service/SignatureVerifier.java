@@ -211,7 +211,8 @@ public class SignatureVerifier {
 
         // issuer → самый свежий CRL
         java.util.Map<String, X509CRL> byIssuer = new java.util.HashMap<>();
-        int total = 0, failed = 0;
+        int total = 0;
+        int failed = 0;
 
         try (Stream<Path> stream = Files.list(crlsDir)) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");

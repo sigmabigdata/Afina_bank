@@ -93,7 +93,7 @@ public class AdminCredentialsFileService {
 
     /** Убирает пробелы/дефисы из СНИЛС: "123-456-789 01" -> "12345678901". */
     private String normalizeSnils(String snils) {
-        return snils == null ? "" : snils.replaceAll("[^0-9]", "");
+        return snils == null ? "" : snils.replaceAll("\\D", "");
     }
 
     public record AdminRecord(String cn, String snils) {}

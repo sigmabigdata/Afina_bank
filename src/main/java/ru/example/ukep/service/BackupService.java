@@ -13,7 +13,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -67,7 +66,7 @@ public class BackupService {
                     })
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparing(BackupFile::createdAt).reversed())
-                    .collect(Collectors.toList());
+                    .toList();
         } catch (IOException e) {
             return List.of();
         }
@@ -114,7 +113,11 @@ public class BackupService {
         }
 
         int rc = proc.waitFor();
-        errThread.join(2000);
+        try {
+            errThread.join(2000);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
         if (rc != 0) {
             Files.deleteIfExists(out);
             String err = stderrBuf.toString().trim();

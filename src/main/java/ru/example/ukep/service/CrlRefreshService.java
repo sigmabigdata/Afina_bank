@@ -58,7 +58,8 @@ public class CrlRefreshService {
         try {
             List<DocumentSignature> all = signatureRepo.findAll();
             Set<X509Certificate> uniqueCerts = new HashSet<>();
-            int parsed = 0, errors = 0;
+            int parsed = 0;
+            int errors = 0;
 
             for (DocumentSignature sig : all) {
                 try {

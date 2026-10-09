@@ -22,10 +22,12 @@ public class DataInitializer {
                 log.warn("    Добавьте строку: CN|SNILS");
             } else {
                 for (var r : list) {
-                    log.info("CN='{}', SNILS=***{}", r.cn(),
-                            r.snils().length() >= 4
-                                    ? r.snils().substring(r.snils().length() - 4)
-                                    : "***");
+                    if (log.isInfoEnabled()) {
+                        String snilsTail = r.snils().length() >= 4
+                                ? r.snils().substring(r.snils().length() - 4)
+                                : "***";
+                        log.info("CN='{}', SNILS=***{}", r.cn(), snilsTail);
+                    }
                 }
             }
         };

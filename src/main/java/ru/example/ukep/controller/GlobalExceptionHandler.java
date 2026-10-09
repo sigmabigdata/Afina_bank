@@ -11,14 +11,16 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String K_ERROR = "error";
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<?> handleSize(MaxUploadSizeExceededException e) {
+    public ResponseEntity<Map<String, String>> handleSize(MaxUploadSizeExceededException e) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(Map.of("error", "Файл слишком большой"));
+                .body(Map.of(K_ERROR, "Файл слишком большой"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<?> handleBad(IllegalArgumentException e) {
-        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    public ResponseEntity<Map<String, String>> handleBad(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(Map.of(K_ERROR, e.getMessage()));
     }
 }

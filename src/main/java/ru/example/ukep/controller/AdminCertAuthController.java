@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AdminCertAuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminCertAuthController.class);
+    private static final String K_ERROR = "error";
 
     private final AdminCredentialsFileService adminFile;
     private final UserService userService;
@@ -75,29 +76,35 @@ public class AdminCertAuthController {
 
     @PostMapping("/admin/cert-login")
     @ResponseBody
-    public ResponseEntity<?> certLogin(@RequestBody CertLoginRequest req,
+    public ResponseEntity<Map<String, Object>> certLogin(@RequestBody CertLoginRequest req,
                                        HttpServletRequest request,
                                        HttpServletResponse response) {
         try {
             // 1. Проверяем и потребляем челлендж
             if (req.getChallenge() == null || req.getChallenge().isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Челлендж не передан"));
+                return ResponseEntity.badRequest().body(Map.of(K_ERROR, "Челлендж не передан"));
             }
             Long createdAt = challenges.remove(req.getChallenge());
             if (createdAt == null || System.currentTimeMillis() - createdAt > 300_000) {
                 log.warn("Challenge invalid or expired: {}",
                         req.getChallenge() == null ? "null" : "(present)");
-                return ResponseEntity.badRequest().body(Map.of("error", "Челлендж недействителен"));
+                return ResponseEntity.badRequest().body(Map.of(K_ERROR, "Челлендж недействителен"));
             }
 
             // 2. Проверяем CN + СНИЛС в admins.env
             var admin = adminFile.find(req.getCn(), req.getSnils());
             if (admin.isEmpty()) {
-                log.warn("Cert login rejected: CN={}, SNILS={}", req.getCn(), maskSnils(req.getSnils()));
+                if (log.isWarnEnabled()) {
+                    log.warn("Cert login rejected: CN={}, SNILS={}",
+                            req.getCn(), maskSnils(req.getSnils()));
+                }
                 return ResponseEntity.status(403).body(
-                        Map.of("error", "Пользователь не является администратором"));
+                        Map.of(K_ERROR, "Пользователь не является администратором"));
             }
-            log.info("Admin CN/SNILS matched: {} / {}", admin.get().cn(), maskSnils(admin.get().snils()));
+            if (log.isInfoEnabled()) {
+                log.info("Admin CN/SNILS matched: {} / {}",
+                        admin.get().cn(), maskSnils(admin.get().snils()));
+            }
 
             // 3. Криптографическая проверка подписи челленджа
             byte[] challengeBytes = req.getChallenge().getBytes(StandardCharsets.UTF_8);
@@ -108,9 +115,12 @@ public class AdminCertAuthController {
             String signerCn = String.valueOf(
                     result.getOrDefault("signerSubject", "")).trim();
             if (signerCn.isEmpty() || !signerCn.equalsIgnoreCase(admin.get().cn())) {
-                log.warn("CN mismatch: signer='{}', expected='{}'", signerCn, admin.get().cn());
+                if (log.isWarnEnabled()) {
+                    log.warn("CN mismatch: signer='{}', expected='{}'",
+                            signerCn, admin.get().cn());
+                }
                 return ResponseEntity.status(403).body(
-                        Map.of("error", "CN в сертификате не совпадает с CN в admins.env"));
+                        Map.of(K_ERROR, "CN в сертификате не совпадает с CN в admins.env"));
             }
 
             // 5. Создаём/находим запись в БД и логиним
@@ -128,14 +138,16 @@ public class AdminCertAuthController {
             SecurityContextHolder.setContext(ctx);
             adminContextRepository.saveContext(ctx, request, response);
 
-            log.info("Admin logged in via cert: {}", admin.get().cn());
+            if (log.isInfoEnabled()) {
+                log.info("Admin logged in via cert: {}", admin.get().cn());
+            }
             audit.adminLoginSuccess(admin.get().cn());
             return ResponseEntity.ok(Map.of("success", true, "redirect", "/admin"));
         } catch (Exception e) {
             log.error("Cert login failed", e);
             audit.adminLoginFail("unknown", e.getMessage());
             return ResponseEntity.status(403).body(
-                    Map.of("error", "Не удалось войти: " + e.getMessage()));
+                    Map.of(K_ERROR, "Не удалось войти: " + e.getMessage()));
         }
     }
 

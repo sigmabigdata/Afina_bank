@@ -18,7 +18,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin/audit")
@@ -158,7 +157,7 @@ public class AuditController {
                             && e.getActorEmail().toLowerCase().contains(actorF)))
                 .filter(e -> fromI == null || !e.getEventTime().isBefore(fromI))
                 .filter(e -> toI == null || e.getEventTime().isBefore(toI))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @org.springframework.web.bind.annotation.PostMapping("/cleanup")

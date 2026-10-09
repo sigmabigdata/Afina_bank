@@ -116,7 +116,7 @@ public class UserService implements UserDetailsService {
     public static String buildAdminEmail(String cn, String snils) {
         String safeCn = cn == null ? "admin" : cn.trim().toLowerCase()
                 .replaceAll("[^a-z0-9]+", ".")
-                .replaceAll("^\\.|\\.$", "");
+                .replaceAll("(^\\.)|(\\.$)", "");
         return safeCn + "+" + snils + "@ukep.local";
     }
 

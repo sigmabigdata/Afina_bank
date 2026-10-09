@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -206,7 +207,7 @@ public class CrlDownloader {
     private String issuerKey(X509CRL crl) throws Exception {
         String issuer = crl.getIssuerX500Principal().getName();
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] h = md.digest(issuer.getBytes("UTF-8"));
+        byte[] h = md.digest(issuer.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(h).substring(0, 16);
     }
 

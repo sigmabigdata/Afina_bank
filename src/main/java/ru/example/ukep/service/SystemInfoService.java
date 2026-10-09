@@ -49,7 +49,9 @@ public class SystemInfoService {
         try {
             // Читаем /proc/meminfo (Linux)
             List<String> lines = Files.readAllLines(Path.of("/proc/meminfo"));
-            long total = 0, available = 0, free = 0;
+            long total = 0;
+            long available = 0;
+            long free = 0;
             for (String line : lines) {
                 if (line.startsWith("MemTotal:"))        total     = parseKb(line);
                 else if (line.startsWith("MemAvailable:")) available = parseKb(line);
@@ -86,7 +88,7 @@ public class SystemInfoService {
 
     private long parseKb(String line) {
         try {
-            String v = line.replaceAll("[^0-9]", " ").trim().split("\\s+")[0];
+            String v = line.replaceAll("\\D", " ").trim().split("\\s+")[0];
             return Long.parseLong(v);
         } catch (Exception e) {
             return 0;
@@ -187,8 +189,8 @@ public class SystemInfoService {
                 m.put("success", r.get("success"));
                 Object ts = r.get("installed_on");
                 // Timestamp → Instant, чтобы Thymeleaf #temporals умел форматировать
-                if (ts instanceof java.sql.Timestamp) {
-                    m.put("installed_on", ((java.sql.Timestamp) ts).toInstant());
+                if (ts instanceof java.sql.Timestamp timestamp) {
+                    m.put("installed_on", timestamp.toInstant());
                 } else {
                     m.put("installed_on", ts);
                 }
@@ -313,12 +315,9 @@ public class SystemInfoService {
         }));
 
         // 5. Размер БД
-        list.add(check("Размер БД", () -> {
-            String v = jdbc.queryForObject(
+        list.add(check("Размер БД", () -> jdbc.queryForObject(
                 "SELECT pg_size_pretty(pg_database_size(current_database()))",
-                String.class);
-            return v;
-        }));
+                String.class)));
 
         // 6. Миграции
         list.add(check("Все миграции успешны", () -> {

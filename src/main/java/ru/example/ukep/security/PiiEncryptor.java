@@ -110,7 +110,7 @@ public class PiiEncryptor {
     /** Hash от телефона — только цифры. */
     public String hashPhone(String phone) {
         if (phone == null) return null;
-        String digits = phone.replaceAll("[^0-9]", "");
+        String digits = phone.replaceAll("\\D", "");
         if (digits.isEmpty()) return null;
         return hash(digits);
     }

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,7 +35,7 @@ public class LogService {
             List<String> all = new ArrayList<>();
             String line;
             while ((line = raf.readLine()) != null) {
-                all.add(new String(line.getBytes("ISO-8859-1"), "UTF-8"));
+                all.add(new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8));
             }
             int from = Math.max(0, all.size() - lines);
             return all.subList(from, all.size());

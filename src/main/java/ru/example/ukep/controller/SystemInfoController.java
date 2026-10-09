@@ -139,7 +139,7 @@ public class SystemInfoController {
      */
     @PostMapping("/restart")
     @ResponseBody
-    public ResponseEntity<?> restart(java.security.Principal auth) {
+    public ResponseEntity<Map<String, Object>> restart(java.security.Principal auth) {
         log.warn("Restart requested by admin");
         audit.appRestart(auth != null ? auth.getName() : UNKNOWN);
         new Thread(() -> {

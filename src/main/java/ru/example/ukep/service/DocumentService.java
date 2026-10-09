@@ -128,7 +128,12 @@ public class DocumentService {
         };
     }
 
-    @Deprecated
+    /**
+     * @deprecated используйте {@link #getBytes(Document)} — возвращает
+     *             расшифрованные байты, не путь к зашифрованному файлу.
+     *             Будет удалён в следующем мажоре.
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     public Path getPath(Document doc) { return storageRoot.resolve(doc.getStoredName()); }
 
     /** Добавить новую подпись документу (неограниченное количество). */
@@ -184,7 +189,11 @@ public class DocumentService {
     }
 
     /** Legacy-метод для совместимости. */
-    @Deprecated
+    /**
+     * @deprecated используйте {@link #addSignature(Long, User, String, String, String)}.
+     *             Метод оставлен для обратной совместимости, будет удалён.
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     @Transactional
     public void saveSignature(Long docId, User owner, String signatureBase64,
                               String signerSubject, String signerSerial) {
