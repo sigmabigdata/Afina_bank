@@ -89,7 +89,7 @@ public class SecurityConfig {
             .securityMatcher("/admin/**", "/api/sign/admin/**")
             .userDetailsService(uds)
             .securityContext(sc -> sc.securityContextRepository(adminRepo))
-            .sessionManagement(s -> s.sessionFixation().none())
+            .sessionManagement(s -> s.sessionFixation().changeSessionId())
             .addFilterBefore(adminIpFilter(), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/admin/login", "/admin/challenge", "/admin/cert-login").permitAll()
@@ -130,7 +130,7 @@ public class SecurityConfig {
         http
             .userDetailsService(uds)
             .securityContext(sc -> sc.securityContextRepository(userRepo))
-            .sessionManagement(s -> s.sessionFixation().none())
+            .sessionManagement(s -> s.sessionFixation().changeSessionId())
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/", "/login", "/login/confirm", "/error",
                                  "/actuator/health", "/actuator/info",
