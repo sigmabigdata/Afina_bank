@@ -127,24 +127,16 @@ public class CrlDownloader {
                 throw new IllegalStateException("файл слишком маленький");
             }
 
-            // Читаем issuer из скачанного CRL
             X509CRL crl = parseCrl(tmp);
             String issuerKey = issuerKey(crl);
             Path target = crlDir.resolve(AUTO_PREFIX + issuerKey + CRL_SUFFIX);
 
-            // Если уже есть свежий файл для этого issuer — не перезаписываем
-            if (Files.isRegularFile(target)) {
-                long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(target).toMillis();
-                long ageHours = ageMs / 3_600_000L;
-                if (ageHours < maxAgeHours) {
-                    return false; // свежий, не трогаем
-                }
+            if (isExistingFresh(target)) {
+                return false; // свежий, не трогаем
             }
 
-            // Удалить старые файлы с тем же issuer (например, названные по URL)
             deleteOldFilesForIssuer(issuerKey);
 
-            // Атомарно заменяем
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             log.info("CRL обновлён: {} ({} байт, issuer={})",
                     target.getFileName(), Files.size(target), crl.getIssuerX500Principal());
@@ -152,6 +144,14 @@ public class CrlDownloader {
         } finally {
             Files.deleteIfExists(tmp);
         }
+    }
+
+    /** true, если target существует и его mtime свежее maxAgeHours. */
+    private boolean isExistingFresh(Path target) throws Exception {
+        if (!Files.isRegularFile(target)) return false;
+        long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(target).toMillis();
+        long ageHours = ageMs / 3_600_000L;
+        return ageHours < maxAgeHours;
     }
 
     /**

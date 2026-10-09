@@ -93,47 +93,11 @@ public class SignatureVerifier {
 
         for (SignerInformation signer : signers.getSigners()) {
             X509Certificate leaf = getSignerCert(signer, cms);
-
-            // 1) Криптопроверка подписи (BC, fallback JCSP для ГОСТ)
-            boolean valid = verifySignerCrypto(signer, leaf);
-            if (!valid) {
-                throw new IllegalStateException("Подпись недействительна");
-            }
-
-            // 2) Срок действия листа
-            leaf.checkValidity();
-
-            // 3) Построение цепочки (вручную)
-            List<X509Certificate> chain = buildChain(leaf, cms);
-            log.info("Chain built: {} certificates (leaf={})", chain.size(),
-                    leaf.getSubjectX500Principal());
-
-            // 4) Проверка корня в truststore
-            X509Certificate root = chain.get(chain.size() - 1);
-            if (!isTrustedRoot(root, truststore)) {
-                throw new IllegalStateException(
-                        "Корневой сертификат не в truststore: " + root.getSubjectX500Principal());
-            }
-
-            // 5) Подписи звеньев
-            verifyChainSignatures(chain);
-
-            // 6) Срок действия всех звеньев
-            for (X509Certificate c : chain) {
-                c.checkValidity();
-            }
-
-            // 7) Отзыв по CRL
-            checkNotRevoked(chain, crls);
-
-            // Метаданные подписанта
-            String subject = leaf.getSubjectX500Principal().getName();
-            String cn = extractCn(subject);
-            String serial = leaf.getSerialNumber().toString(16);
-            infos.add(subject + "; serial=" + serial);
+            SignerMeta meta = verifyOneSigner(signer, leaf, cms, truststore, crls);
+            infos.add(meta.info());
             if (firstCn.isEmpty()) {
-                firstCn = cn;
-                firstSerial = serial;
+                firstCn = meta.cn();
+                firstSerial = meta.serial();
             }
         }
 
@@ -146,6 +110,51 @@ public class SignatureVerifier {
     }
 
     // ==================== Внутренние методы ====================
+
+    /** Метаданные одного подписанта (для результата верификации). */
+    private record SignerMeta(String cn, String serial, String info) {}
+
+    /**
+     * Полная проверка одного подписанта: крипто, цепочка, корень в truststore,
+     * срок действия, отзыв по CRL.
+     */
+    private SignerMeta verifyOneSigner(SignerInformation signer, X509Certificate leaf,
+                                       CMSSignedData cms,
+                                       Set<X509Certificate> truststore,
+                                       Set<X509CRL> crls) throws Exception {
+        // 1) Криптопроверка подписи (BC, fallback JCSP для ГОСТ)
+        if (!verifySignerCrypto(signer, leaf)) {
+            throw new IllegalStateException("Подпись недействительна");
+        }
+        // 2) Срок действия листа
+        leaf.checkValidity();
+
+        // 3) Построение цепочки (вручную)
+        List<X509Certificate> chain = buildChain(leaf, cms);
+        log.info("Chain built: {} certificates (leaf={})", chain.size(),
+                leaf.getSubjectX500Principal());
+
+        // 4) Корень в truststore
+        X509Certificate root = chain.get(chain.size() - 1);
+        if (!isTrustedRoot(root, truststore)) {
+            throw new IllegalStateException(
+                    "Корневой сертификат не в truststore: " + root.getSubjectX500Principal());
+        }
+        // 5) Подписи звеньев
+        verifyChainSignatures(chain);
+        // 6) Срок действия всех звеньев
+        for (X509Certificate c : chain) {
+            c.checkValidity();
+        }
+        // 7) Отзыв по CRL
+        checkNotRevoked(chain, crls);
+
+        String subject = leaf.getSubjectX500Principal().getName();
+        return new SignerMeta(
+                extractCn(subject),
+                leaf.getSerialNumber().toString(16),
+                subject + "; serial=" + leaf.getSerialNumber().toString(16));
+    }
 
     private boolean verifySignerCrypto(SignerInformation signer, X509Certificate leaf) {
         // Пробуем BouncyCastle
