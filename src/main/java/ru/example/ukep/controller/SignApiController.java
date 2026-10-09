@@ -95,7 +95,14 @@ public class SignApiController {
         try {
             return owner.getEmail();
         } catch (Exception e) {
-            return "user#" + (owner != null ? owner.getId() : "?");
+            // LazyInit / detached-сущность: getId() обычно доступен без обращения к БД
+            Long id;
+            try {
+                id = owner.getId();
+            } catch (Exception inner) {
+                id = null;
+            }
+            return "user#" + (id != null ? id : "?");
         }
     }
 }

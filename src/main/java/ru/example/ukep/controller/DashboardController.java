@@ -25,8 +25,12 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public String dashboard(Authentication auth, Model model) {
+        // Spring Security уже должен был отсечь, но на всякий случай
+        if (auth == null || !auth.isAuthenticated()) {
+            return "redirect:/login";
+        }
         // Админ не должен видеть клиентский кабинет — перенаправляем
-        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+        boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
         if (isAdmin) return "redirect:/admin";
 

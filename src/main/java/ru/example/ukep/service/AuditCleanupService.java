@@ -38,7 +38,7 @@ public class AuditCleanupService {
             return;
         }
         try {
-            long deleted = cleanup(days);
+            long deleted = doCleanup(days);
             settings.set("audit.last_cleanup_at", Instant.now().toString(), "system");
             settings.set("audit.last_cleanup_deleted", String.valueOf(deleted), "system");
             log.info("audit cleanup: удалено {} записей старше {} дней", deleted, days);
@@ -50,6 +50,19 @@ public class AuditCleanupService {
     /** Ручной запуск из UI. */
     @Transactional
     public long cleanup(int days) {
+        return doCleanup(days);
+    }
+
+    /**
+     * Тело очистки. Без @Transactional — вызывается из публичных методов
+     * (cleanup() и dailyCleanup()), чтобы не было self-invocation
+     * (Sonar java:S2229).
+     *
+     * repo.count() и repo.deleteByEventTimeBefore() сами по себе
+     * транзакционные (Spring Data JPA), поэтому корректность сохраняется
+     * и без внешней транзакции.
+     */
+    private long doCleanup(int days) {
         Instant cutoff = Instant.now().minus(days, ChronoUnit.DAYS);
         long before = repo.count();
         long deleted = repo.deleteByEventTimeBefore(cutoff);

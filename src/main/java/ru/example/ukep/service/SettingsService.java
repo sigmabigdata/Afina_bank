@@ -60,8 +60,23 @@ public class SettingsService {
         return "true".equalsIgnoreCase(v) || "1".equals(v) || "yes".equalsIgnoreCase(v);
     }
 
+    /**
+     * Записать одну настройку. Транзакция — на этом методе.
+     * Тело вынесено в private writeSetting(), чтобы не было self-invocation
+     * @Transactional из setAll() (Sonar java:S2229).
+     */
     @Transactional
     public void set(String key, String value, String updatedBy) {
+        writeSetting(key, value, updatedBy);
+    }
+
+    @Transactional
+    public void setAll(Map<String, String> updates, String updatedBy) {
+        updates.forEach((k, v) -> writeSetting(k, v, updatedBy));
+    }
+
+    /** Общее тело записи. Без @Transactional — вызывается из публичных методов. */
+    private void writeSetting(String key, String value, String updatedBy) {
         AppSetting s = repo.findById(key).orElseGet(() -> {
             AppSetting ns = new AppSetting();
             ns.setKey(key);
@@ -75,11 +90,6 @@ public class SettingsService {
         log.info("Setting updated: {} = '{}' (by {})", key,
                 value != null && value.length() > 50 ? value.substring(0, 50) + "..." : value,
                 updatedBy);
-    }
-
-    @Transactional
-    public void setAll(Map<String, String> updates, String updatedBy) {
-        updates.forEach((k, v) -> set(k, v, updatedBy));
     }
 
     /** Программный сброс кэша (например, после миграции). */
